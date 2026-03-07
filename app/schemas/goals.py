@@ -21,6 +21,11 @@ class GoalBase(BaseModel):
 class GoalCreate(GoalBase):
     pass
 
+class GoalUpdate(BaseModel):
+    model_config = {"extra": "forbid"}
+    
+    monthly_limit: Decimal | None = None
+
 class GoalResponse(GoalBase):
     model_config = {"from_attributes": True, "extra": "forbid"}
 

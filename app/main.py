@@ -10,7 +10,7 @@ from app.database import engine, get_db
 import logging
 
 from app.schemas.base import BaseResponse, ErrorResponse
-from app.schemas.goals import GoalCreate, GoalResponse
+from app.schemas.goals import GoalCreate, GoalResponse, GoalUpdate
 from app.models import Goal
 
 logger = logging.getLogger(__name__)
@@ -147,3 +147,17 @@ async def delete_goal(goal_id: UUID, db: AsyncSession = Depends(get_db)):
     await db.delete(goal)
     await db.commit()
     return
+
+@app.patch("/api/v1/goals/{goal_id}", response_model=BaseResponse[GoalResponse])
+async def update_goal(goal_id: UUID, goal_update: GoalUpdate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Goal).where(Goal.id == goal_id))
+    goal = result.scalar_one_or_none()
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    
+    for field, value in goal_update.model_dump().items():
+        setattr(goal, field, value)
+    
+    await db.commit()
+    await db.refresh(goal)
+    return BaseResponse(data=goal)
