@@ -59,6 +59,7 @@ coverage.xml
 
 # Environment variables
 .env
+.env.*
 .env.local
 .env.*.local
 !.env.example
