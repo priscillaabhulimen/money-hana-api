@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import os
 from pathlib import Path
 
-load_dotenv(Path(__file__).parent.parent / ".env.development")
+# load_dotenv(Path(__file__).parent.parent / ".env")
 
 _engine = None
 _async_session_maker = None
