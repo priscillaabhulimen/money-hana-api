@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import os
 from pathlib import Path
 
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent / ".env.development")
 
 _engine = None
 _async_session_maker = None
@@ -26,7 +26,9 @@ def get_engine():
                 "DATABASE_URL environment variable is not set. Please configure it in your environment or .env file."
             )
 
-        _engine = create_async_engine(database_url, echo=True)
+        DEBUG_SQL = os.getenv("DEBUG_SQL", "false").lower() == "true"
+
+        _engine = create_async_engine(database_url, echo=DEBUG_SQL)
         _async_session_maker = async_sessionmaker(_engine, expire_on_commit=False)
 
     return _engine
