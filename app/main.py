@@ -113,6 +113,7 @@ async def db_health_check(db: AsyncSession = Depends(get_db)):
         logger.exception("Database health check failed")
         raise HTTPException(status_code=503, detail="Database unavailable")
     
+# TODO: Replace with real user management
 TEMP_USER_ID = UUID("ef73d89b-3d2d-4658-8b79-20a06c06d5cd")
     
 @app.get("/api/v1/goals", response_model=BaseResponse[list[GoalResponse]])
