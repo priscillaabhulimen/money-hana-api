@@ -1,13 +1,18 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from app.database import get_db
-from app import models  # noqa: F401  # Import models so Base.metadata is populated
+from app.database import engine, get_db
 import logging
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="MoneyHana API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    await engine.dispose()
+
+app = FastAPI(title="MoneyHana API", lifespan=lifespan)
 
 @app.get("/health")
 async def health_check():

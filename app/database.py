@@ -1,51 +1,23 @@
 from typing import AsyncGenerator
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from dotenv import load_dotenv
-import os
 from pathlib import Path
+import os
 
-# load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent / ".env")
 
-_engine = None
-_async_session_maker = None
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError(
+        "DATABASE_URL environment variable is not set. "
+        "Please configure it in your environment or .env file."
+    )
 
-def get_engine():
-    """
-    Lazily create and return the async database engine.
-    """
-    global _engine, _async_session_maker
+DEBUG_SQL = os.getenv("DEBUG_SQL", "false").lower() == "true"
 
-    if _engine is None:
-        database_url = os.getenv("DATABASE_URL")
-        if not database_url:
-            raise RuntimeError(
-                "DATABASE_URL environment variable is not set. Please configure it in your environment or .env file."
-            )
-
-        DEBUG_SQL = os.getenv("DEBUG_SQL", "false").lower() == "true"
-
-        _engine = create_async_engine(database_url, echo=DEBUG_SQL)
-        _async_session_maker = async_sessionmaker(_engine, expire_on_commit=False)
-
-    return _engine
-
-def get_async_session_maker():
-    """
-    Lazily create and return the async session maker.
-    """
-    global _async_session_maker
-
-    if _async_session_maker is None:
-        # Ensure engine and session maker are initialized
-        get_engine()
-
-    return _async_session_maker
+engine = create_async_engine(DATABASE_URL, echo=DEBUG_SQL)
+async_session_maker = async_sessionmaker(engine, expire_on_commit=False)
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    async_session_maker = get_async_session_maker()
     async with async_session_maker() as session:
         yield session
