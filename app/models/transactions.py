@@ -4,7 +4,7 @@ from sqlalchemy import Column, Date, DateTime, String, Numeric, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
-class Transactions(Base):
+class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
