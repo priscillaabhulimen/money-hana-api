@@ -17,6 +17,6 @@ async def db_health_check(db: AsyncSession = Depends(get_db)):
     try:
         await db.execute(text("SELECT 1"))
         return {"status": "ok"}
-    except Exception as e:
-        logger.error(f"Database health check failed: {e}")
+    except Exception:
+        logger.exception("Database health check failed")
         raise HTTPException(status_code=503, detail="Database unavailable")
