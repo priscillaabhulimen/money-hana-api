@@ -22,8 +22,8 @@ class GoalCreate(GoalBase):
     pass
 
 class GoalResponse(GoalBase):
+    model_config = {"from_attributes": True, "extra": "forbid"}
+
     id: UUID
     user_id: UUID
     created_at: datetime
-
-    model_config = {"from_attributes": True}

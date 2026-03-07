@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.openapi.utils import get_openapi
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from uuid import UUID
@@ -60,6 +61,49 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         ).model_dump()
     )
 
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_schema = get_openapi(
+        title="MoneyHana API",
+        version="1.0.0",
+        routes=app.routes,
+    )
+    
+    # Replace 422 response schema across all endpoints
+    for path in openapi_schema["paths"].values():
+        for method in path.values():
+            if "422" in method.get("responses", {}):
+                method["responses"]["422"] = {
+                    "description": "Validation Error",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ErrorResponse"
+                            }
+                        }
+                    }
+                }
+    
+    # Add ErrorResponse to components
+    openapi_schema["components"]["schemas"]["ErrorResponse"] = {
+        "type": "object",
+        "properties": {
+            "status": {"type": "string", "example": "error"},
+            "message": {"type": "string", "example": "Invalid category"}
+        },
+        "required": ["status", "message"]
+    }
+
+    for schema_name in ["HTTPValidationError", "ValidationError"]:
+        openapi_schema["components"]["schemas"].pop(schema_name, None)
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
+
 @app.get("/health")
 async def db_health_check(db: AsyncSession = Depends(get_db)):
     try:
@@ -77,6 +121,14 @@ async def get_goals(db: AsyncSession = Depends(get_db)):
     goals = result.scalars().all()
     return BaseResponse(data=goals)
 
+@app.get("/api/v1/goals/{goal_id}", response_model=BaseResponse[GoalResponse])
+async def get_goal(goal_id: UUID, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Goal).where(Goal.id == goal_id))
+    goal = result.scalar_one_or_none()
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    return BaseResponse(data=goal)
+
 @app.post("/api/v1/goals", response_model=BaseResponse[GoalResponse], status_code=status.HTTP_201_CREATED)
 async def create_goal(goal: GoalCreate, db: AsyncSession = Depends(get_db)):
     new_goal = Goal(**goal.model_dump(), user_id=TEMP_USER_ID)
@@ -84,3 +136,14 @@ async def create_goal(goal: GoalCreate, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(new_goal)
     return BaseResponse(data=new_goal)
+
+
+@app.delete("/api/v1/goals/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_goal(goal_id: UUID, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Goal).where(Goal.id == goal_id))
+    goal = result.scalar_one_or_none()
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    await db.delete(goal)
+    await db.commit()
+    return
