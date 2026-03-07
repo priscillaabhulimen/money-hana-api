@@ -35,7 +35,7 @@ ERROR_MESSAGES = {
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     errors = exc.errors()
-    print(exc.errors());
+    logger.debug("Request validation error", extra={"errors": errors})
     first = errors[0]
     field = " -> ".join(
         str(loc) for loc in first["loc"] 
