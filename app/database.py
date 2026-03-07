@@ -10,7 +10,6 @@ from pathlib import Path
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
-DATABASE_URL = os.getenv("DATABASE_URL")
 _engine = None
 _async_session_maker = None
 
