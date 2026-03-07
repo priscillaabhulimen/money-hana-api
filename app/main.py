@@ -156,7 +156,7 @@ async def update_goal(goal_id: UUID, goal_update: GoalUpdate, db: AsyncSession =
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
-    for field, value in goal_update.model_dump().items():
+    for field, value in goal_update.model_dump(exclude_unset=True).items():
         setattr(goal, field, value)
     
     await db.commit()
