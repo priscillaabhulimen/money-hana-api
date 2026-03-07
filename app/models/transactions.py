@@ -13,5 +13,5 @@ class Transaction(Base):
     note = Column(String, nullable=True)
     date = Column(Date, nullable=False)
     category = Column(String, nullable=False)
-    transaction_type = Column("type", String, nullable=False)  # "income" or "expense"
+    transaction_type = Column(String, nullable=False)  # "income" or "expense"
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
