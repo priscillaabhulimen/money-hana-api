@@ -11,6 +11,8 @@ from pathlib import Path
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is not set. Please configure it in your environment or .env file.")
 
 engine = create_async_engine(DATABASE_URL, echo=True)
 
