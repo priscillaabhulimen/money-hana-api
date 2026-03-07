@@ -44,7 +44,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     error_type = first["type"]
     raw_message = first["msg"]
 
-    friendly = ERROR_MESSAGES.get(error_type, raw_message)
+    friendly = ERROR_MESSAGES.get(raw_message, raw_message)
     message = f"{field}: {friendly}" if field else friendly
 
     return JSONResponse(
