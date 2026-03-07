@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from app.database import get_db
+from app import models  # noqa: F401  # Import models so Base.metadata is populated
 import logging
 
 logger = logging.getLogger(__name__)
