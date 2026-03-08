@@ -62,6 +62,17 @@ class TransactionUpdate(BaseModel):
     date: datetime.date | None = None
     note: str | None = None
 
+    @field_validator("date", mode="before")
+    @classmethod
+    def validate_date(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, datetime.date):
+            return v
+        try:
+            return datetime.datetime.strptime(v, "%Y-%m-%d").date()
+        except Exception:
+            raise ValueError("Invalid date format")
     @field_validator("transaction_type", mode="before")
     @classmethod
     def validate_transaction_type(cls, v):
