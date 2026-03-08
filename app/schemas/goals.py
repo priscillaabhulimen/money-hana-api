@@ -31,5 +31,5 @@ class GoalResponse(GoalBase):
 
     id: UUID
     user_id: UUID
-    current_spend: Decimal
+    current_spend: Decimal = Decimal(0)
     created_at: datetime

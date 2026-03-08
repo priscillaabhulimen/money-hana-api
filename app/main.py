@@ -128,19 +128,25 @@ TEMP_USER_ID = UUID("ef73d89b-3d2d-4658-8b79-20a06c06d5cd")
 
 # ── Goals ─────────────────────────────────────────────────────────────────────
 
-async def get_current_spend(db: AsyncSession, user_id: UUID, category: str) -> Decimal:
+from sqlalchemy import func, extract, case
+from datetime import datetime, timezone
+
+async def get_current_spend_all(db: AsyncSession, user_id: UUID) -> dict[str, Decimal]:
     now = datetime.now(timezone.utc)
     result = await db.execute(
-        select(func.coalesce(func.sum(Transaction.amount), 0))
+        select(
+            Transaction.category,
+            func.coalesce(func.sum(Transaction.amount), 0).label("total")
+        )
         .where(
             Transaction.user_id == user_id,
-            Transaction.category == category,
-            Transaction.transaction_type == TransactionType.expense,
+            Transaction.transaction_type == "expense",
             extract("month", Transaction.date) == now.month,
             extract("year", Transaction.date) == now.year,
         )
+        .group_by(Transaction.category)
     )
-    return result.scalar()
+    return {row.category: row.total for row in result.all()}
 
 @app.get("/api/v1/goals", response_model=BaseResponse[list[GoalResponse]])
 async def get_goals(db: AsyncSession = Depends(get_db)):
@@ -148,7 +154,8 @@ async def get_goals(db: AsyncSession = Depends(get_db)):
     goals = result.scalars().all()
     response = []
     for goal in goals:
-        current_spend = await get_current_spend(db, goal.user_id, goal.category)
+        current_spend_all = await get_current_spend_all(db, goal.user_id)
+        current_spend = current_spend_all.get(goal.category, Decimal(0))
         response.append(GoalResponse(
             **GoalResponse.model_validate(goal).model_dump(),
             current_spend=current_spend
@@ -162,7 +169,8 @@ async def get_goal(goal_id: UUID, db: AsyncSession = Depends(get_db)):
     goal = result.scalar_one_or_none()
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
-    current_spend = await get_current_spend(db, goal.user_id, goal.category)
+    current_spend_all = await get_current_spend_all(db, goal.user_id)
+    current_spend = current_spend_all.get(goal.category, Decimal(0))
     return BaseResponse(data=GoalResponse(
         **GoalResponse.model_validate(goal).model_dump(),
         current_spend=current_spend
@@ -175,7 +183,8 @@ async def create_goal(goal: GoalCreate, db: AsyncSession = Depends(get_db)):
     db.add(new_goal)
     await db.commit()
     await db.refresh(new_goal)
-    current_spend = await get_current_spend(db, new_goal.user_id, new_goal.category)
+    current_spend_all = await get_current_spend_all(db, new_goal.user_id)
+    current_spend = current_spend_all.get(new_goal.category, Decimal(0))
     return BaseResponse(data=GoalResponse(
         **GoalResponse.model_validate(new_goal).model_dump(),
         current_spend=current_spend
@@ -194,7 +203,8 @@ async def update_goal(goal_id: UUID, goal_update: GoalUpdate, db: AsyncSession =
 
     await db.commit()
     await db.refresh(goal)
-    current_spend = await get_current_spend(db, goal.user_id, goal.category)
+    current_spend_all = await get_current_spend_all(db, goal.user_id)
+    current_spend = current_spend_all.get(goal.category, Decimal(0))
     return BaseResponse(data=GoalResponse(
         **GoalResponse.model_validate(goal).model_dump(),
         current_spend=current_spend
@@ -217,7 +227,7 @@ async def delete_goal(goal_id: UUID, db: AsyncSession = Depends(get_db)):
 async def get_transactions(
     db: AsyncSession = Depends(get_db),
     limit: int = 30,
-    page: int = 0,
+    page: int = 1,
 ):
     total_result = await db.execute(select(func.count()).select_from(Transaction))
     total = total_result.scalar()
@@ -239,7 +249,7 @@ async def get_transaction(transaction_id: UUID, db: AsyncSession = Depends(get_d
     transaction = result.scalar_one_or_none()
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
-    return BaseResponse(data=transaction)
+    return BaseResponse(data=TransactionResponse.model_validate(transaction))
 
 
 @app.post("/api/v1/transactions", response_model=BaseResponse[TransactionResponse], status_code=status.HTTP_201_CREATED)
