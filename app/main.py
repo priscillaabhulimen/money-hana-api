@@ -267,7 +267,11 @@ async def update_transaction(transaction_id: UUID, transaction_update: Transacti
 
     # Validate category/type consistency both when a new category is provided
     # and when only the transaction_type changes but an existing category is present.
-    effective_type = transaction_update.transaction_type or transaction.transaction_type
+    effective_type = (
+        transaction_update.transaction_type
+        if transaction_update.transaction_type is not None
+        else transaction.transaction_type
+    )
     category_to_validate = (
         transaction_update.category
         if transaction_update.category is not None
