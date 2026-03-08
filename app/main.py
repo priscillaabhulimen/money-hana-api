@@ -3,12 +3,14 @@ from fastapi import FastAPI, Depends, HTTPException, Request, status, Query
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.openapi.utils import get_openapi
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, extract, text
-from datetime import date, datetime, timezone
+from sqlalchemy import select, func, text
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 import logging
+import os
 
 from app.database import engine, get_db
 from app.schemas.base import BaseResponse, ErrorResponse, PaginatedResponse
@@ -27,6 +29,16 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="MoneyHana API", lifespan=lifespan)
+
+origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 ERROR_MESSAGES = {
     "missing": "This field is required",
@@ -129,7 +141,13 @@ TEMP_USER_ID = UUID("ef73d89b-3d2d-4658-8b79-20a06c06d5cd")
 # ── Goals ─────────────────────────────────────────────────────────────────────
 
 async def get_current_spend_all(db: AsyncSession, user_id: UUID) -> dict[str, Decimal]:
-    now = datetime.now(timezone.utc)
+    today = date.today()
+    first_of_month = today.replace(day=1)
+    if today.month == 12:
+        first_of_next_month = today.replace(year=today.year + 1, month=1, day=1)
+    else:
+        first_of_next_month = today.replace(month=today.month + 1, day=1)
+
     result = await db.execute(
         select(
             Transaction.category,
@@ -138,13 +156,12 @@ async def get_current_spend_all(db: AsyncSession, user_id: UUID) -> dict[str, De
         .where(
             Transaction.user_id == user_id,
             Transaction.transaction_type == TransactionType.expense,
-            extract("month", Transaction.date) == now.month,
-            extract("year", Transaction.date) == now.year,
+            Transaction.date >= first_of_month,
+            Transaction.date < first_of_next_month,
         )
         .group_by(Transaction.category)
     )
     return {row.category: row.total for row in result.all()}
-
 
 def enrich_goal_response(goal: Goal, spend_by_category: dict[str, Decimal]) -> GoalResponse:
     goal_response = GoalResponse.model_validate(goal)
