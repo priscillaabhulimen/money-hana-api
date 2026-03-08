@@ -11,7 +11,7 @@ from uuid import UUID
 import logging
 
 from app.database import engine, get_db
-from app.schemas.base import BaseResponse, ErrorResponse
+from app.schemas.base import BaseResponse, ErrorResponse, PaginatedResponse
 from app.schemas.goals import GoalCreate, GoalResponse, GoalUpdate
 from app.schemas.transactions import TransactionCreate, TransactionResponse, TransactionUpdate
 from app.schemas.enums import ExpenseCategory, IncomeCategory, TransactionType
@@ -213,11 +213,23 @@ async def delete_goal(goal_id: UUID, db: AsyncSession = Depends(get_db)):
 
 # ── Transactions ──────────────────────────────────────────────────────────────
 
-@app.get("/api/v1/transactions", response_model=BaseResponse[list[TransactionResponse]])
-async def get_transactions(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Transaction))
+@app.get("/api/v1/transactions", response_model=PaginatedResponse[list[TransactionResponse]])
+async def get_transactions(
+    db: AsyncSession = Depends(get_db),
+    limit: int = 30,
+    page: int = 0,
+):
+    total_result = await db.execute(select(func.count()).select_from(Transaction))
+    total = total_result.scalar()
+
+    result = await db.execute(
+        select(Transaction)
+        .order_by(Transaction.date.desc())
+        .limit(limit)
+        .offset(page * limit)
+    )
     transactions = result.scalars().all()
-    return BaseResponse(data=transactions)
+    return PaginatedResponse(data=transactions, total=total, limit=limit, offset=page * limit)
 
 
 @app.get("/api/v1/transactions/{transaction_id}", response_model=BaseResponse[TransactionResponse])
