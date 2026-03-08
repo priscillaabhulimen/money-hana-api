@@ -30,6 +30,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="MoneyHana API", lifespan=lifespan)
 
+# Comma-separated list of allowed CORS origins.
+# Controlled via the ALLOWED_ORIGINS environment variable, for example:
+#   ALLOWED_ORIGINS="http://localhost:3000,http://localhost:8000"
+# Defaults to "http://localhost:3000" when not set.
 origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 
 app.add_middleware(
