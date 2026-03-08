@@ -17,4 +17,4 @@ class PaginatedResponse(BaseModel, Generic[T]):
     data: T
     total: int
     limit: int
-    offset: int
+    page: int

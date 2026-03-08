@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, Request, status
+from fastapi import FastAPI, Depends, HTTPException, Request, status, Query
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.openapi.utils import get_openapi
@@ -149,14 +149,15 @@ async def get_current_spend_all(db: AsyncSession, user_id: UUID) -> dict[str, De
 async def get_goals(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Goal))
     goals = result.scalars().all()
+
+    spend_by_category = await get_current_spend_all(db, TEMP_USER_ID)
+
     response = []
     for goal in goals:
-        current_spend_all = await get_current_spend_all(db, goal.user_id)
-        current_spend = current_spend_all.get(goal.category, Decimal(0))
-        response.append(GoalResponse(
-            **GoalResponse.model_validate(goal).model_dump(),
-            current_spend=current_spend
-        ))
+        goal_response = GoalResponse.model_validate(goal)
+        goal_response.current_spend = spend_by_category.get(goal.category, Decimal(0))
+        response.append(goal_response)
+
     return BaseResponse(data=response)
 
 
@@ -166,12 +167,12 @@ async def get_goal(goal_id: UUID, db: AsyncSession = Depends(get_db)):
     goal = result.scalar_one_or_none()
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
-    current_spend_all = await get_current_spend_all(db, goal.user_id)
-    current_spend = current_spend_all.get(goal.category, Decimal(0))
-    return BaseResponse(data=GoalResponse(
-        **GoalResponse.model_validate(goal).model_dump(),
-        current_spend=current_spend
-    ))
+
+    spend_by_category = await get_current_spend_all(db, TEMP_USER_ID)
+    goal_response = GoalResponse.model_validate(goal)
+    goal_response.current_spend = spend_by_category.get(goal.category, Decimal(0))
+
+    return BaseResponse(data=goal_response)
 
 
 @app.post("/api/v1/goals", response_model=BaseResponse[GoalResponse], status_code=status.HTTP_201_CREATED)
@@ -180,12 +181,12 @@ async def create_goal(goal: GoalCreate, db: AsyncSession = Depends(get_db)):
     db.add(new_goal)
     await db.commit()
     await db.refresh(new_goal)
-    current_spend_all = await get_current_spend_all(db, new_goal.user_id)
-    current_spend = current_spend_all.get(new_goal.category, Decimal(0))
-    return BaseResponse(data=GoalResponse(
-        **GoalResponse.model_validate(new_goal).model_dump(),
-        current_spend=current_spend
-    ))
+
+    spend_by_category = await get_current_spend_all(db, TEMP_USER_ID)
+    goal_response = GoalResponse.model_validate(new_goal)
+    goal_response.current_spend = spend_by_category.get(new_goal.category, Decimal(0))
+
+    return BaseResponse(data=goal_response)
 
 
 @app.patch("/api/v1/goals/{goal_id}", response_model=BaseResponse[GoalResponse])
@@ -200,13 +201,12 @@ async def update_goal(goal_id: UUID, goal_update: GoalUpdate, db: AsyncSession =
 
     await db.commit()
     await db.refresh(goal)
-    current_spend_all = await get_current_spend_all(db, goal.user_id)
-    current_spend = current_spend_all.get(goal.category, Decimal(0))
-    return BaseResponse(data=GoalResponse(
-        **GoalResponse.model_validate(goal).model_dump(),
-        current_spend=current_spend
-    ))
 
+    spend_by_category = await get_current_spend_all(db, TEMP_USER_ID)
+    goal_response = GoalResponse.model_validate(goal)
+    goal_response.current_spend = spend_by_category.get(goal.category, Decimal(0))
+
+    return BaseResponse(data=goal_response)
 
 @app.delete("/api/v1/goals/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_goal(goal_id: UUID, db: AsyncSession = Depends(get_db)):
@@ -223,12 +223,13 @@ async def delete_goal(goal_id: UUID, db: AsyncSession = Depends(get_db)):
 @app.get("/api/v1/transactions", response_model=PaginatedResponse[list[TransactionResponse]])
 async def get_transactions(
     db: AsyncSession = Depends(get_db),
-    limit: int = 30,
-    page: int = 1,
+    limit: int = Query(default=30, ge=1, le=100),
+    page: int = Query(default=1, ge=1),
 ):
+    offset = (page - 1) * limit
+
     total_result = await db.execute(select(func.count()).select_from(Transaction))
     total = total_result.scalar()
-    offset = (page - 1) * limit
 
     result = await db.execute(
         select(Transaction)
@@ -237,8 +238,7 @@ async def get_transactions(
         .offset(offset)
     )
     transactions = result.scalars().all()
-    return PaginatedResponse(data=transactions, total=total, limit=limit, offset=offset)
-
+    return PaginatedResponse(data=transactions, total=total, limit=limit, page=page)
 
 @app.get("/api/v1/transactions/{transaction_id}", response_model=BaseResponse[TransactionResponse])
 async def get_transaction(transaction_id: UUID, db: AsyncSession = Depends(get_db)):
