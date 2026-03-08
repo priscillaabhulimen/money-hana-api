@@ -128,9 +128,6 @@ TEMP_USER_ID = UUID("ef73d89b-3d2d-4658-8b79-20a06c06d5cd")
 
 # ── Goals ─────────────────────────────────────────────────────────────────────
 
-from sqlalchemy import func, extract, case
-from datetime import datetime, timezone
-
 async def get_current_spend_all(db: AsyncSession, user_id: UUID) -> dict[str, Decimal]:
     now = datetime.now(timezone.utc)
     result = await db.execute(
