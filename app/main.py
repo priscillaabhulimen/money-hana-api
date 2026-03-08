@@ -120,8 +120,8 @@ async def db_health_check(db: AsyncSession = Depends(get_db)):
     except Exception:
         logger.exception("Database health check failed")
         raise HTTPException(status_code=503, detail="Database unavailable")
-    
-    
+
+
 # TODO: Replace with real user management in Week 4
 TEMP_USER_ID = UUID("ef73d89b-3d2d-4658-8b79-20a06c06d5cd")
 
@@ -145,11 +145,11 @@ async def get_current_spend_all(db: AsyncSession, user_id: UUID) -> dict[str, De
     )
     return {row.category: row.total for row in result.all()}
 
+
 def enrich_goal_response(goal: Goal, spend_by_category: dict[str, Decimal]) -> GoalResponse:
     goal_response = GoalResponse.model_validate(goal)
     goal_response.current_spend = spend_by_category.get(goal.category, Decimal(0))
     return goal_response
-
 
 
 @app.get("/api/v1/goals", response_model=BaseResponse[list[GoalResponse]])
@@ -211,44 +211,6 @@ async def get_transactions(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(default=30, ge=1, le=100),
     page: int = Query(default=1, ge=1),
-):
-    offset = (page - 1) * limit
-
-    total_result = await db.execute(select(func.count()).select_from(Transaction))
-    total = total_result.scalar()
-
-    result = await db.execute(
-        select(Transaction)
-        .order_by(Transaction.date.desc())
-        .limit(limit)
-        .offset(offset)
-    )
-    transactions = result.scalars().all()
-    return PaginatedResponse(data=transactions, total=total, limit=limit, page=page)
-
-@app.get("/api/v1/transactions/{transaction_id}", response_model=BaseResponse[TransactionResponse])
-async def get_transaction(transaction_id: UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Transaction).where(Transaction.id == transaction_id))
-    transaction = result.scalar_one_or_none()
-    if not transaction:
-        raise HTTPException(status_code=404, detail="Transaction not found")
-    return BaseResponse(data=TransactionResponse.model_validate(transaction))
-
-
-@app.post("/api/v1/transactions", response_model=BaseResponse[TransactionResponse], status_code=status.HTTP_201_CREATED)
-async def create_transaction(transaction: TransactionCreate, db: AsyncSession = Depends(get_db)):
-    new_transaction = Transaction(**transaction.model_dump(), user_id=TEMP_USER_ID)
-    db.add(new_transaction)
-    await db.commit()
-    await db.refresh(new_transaction)
-    return BaseResponse(data=new_transaction)
-
-
-@app.get("/api/v1/transactions", response_model=PaginatedResponse[list[TransactionResponse]])
-async def get_transactions(
-    db: AsyncSession = Depends(get_db),
-    limit: int = Query(default=30, ge=1, le=100),
-    page: int = Query(default=1, ge=1),
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
 ):
@@ -274,6 +236,62 @@ async def get_transactions(
     )
     transactions = result.scalars().all()
     return PaginatedResponse(data=transactions, total=total, limit=limit, page=page)
+
+
+@app.get("/api/v1/transactions/{transaction_id}", response_model=BaseResponse[TransactionResponse])
+async def get_transaction(transaction_id: UUID, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Transaction).where(Transaction.id == transaction_id))
+    transaction = result.scalar_one_or_none()
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return BaseResponse(data=TransactionResponse.model_validate(transaction))
+
+
+@app.post("/api/v1/transactions", response_model=BaseResponse[TransactionResponse], status_code=status.HTTP_201_CREATED)
+async def create_transaction(transaction: TransactionCreate, db: AsyncSession = Depends(get_db)):
+    new_transaction = Transaction(**transaction.model_dump(), user_id=TEMP_USER_ID)
+    db.add(new_transaction)
+    await db.commit()
+    await db.refresh(new_transaction)
+    return BaseResponse(data=new_transaction)
+
+
+@app.patch("/api/v1/transactions/{transaction_id}", response_model=BaseResponse[TransactionResponse])
+async def update_transaction(transaction_id: UUID, transaction_update: TransactionUpdate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Transaction).where(Transaction.id == transaction_id))
+    transaction = result.scalar_one_or_none()
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    effective_type = (
+        transaction_update.transaction_type
+        if transaction_update.transaction_type is not None
+        else transaction.transaction_type
+    )
+    category_to_validate = (
+        transaction_update.category
+        if transaction_update.category is not None
+        else transaction.category
+    )
+    if effective_type and category_to_validate is not None:
+        if effective_type == TransactionType.expense:
+            try:
+                ExpenseCategory(category_to_validate)
+            except ValueError:
+                raise HTTPException(status_code=422, detail="Invalid category for expense transaction")
+        elif effective_type == TransactionType.income:
+            try:
+                IncomeCategory(category_to_validate)
+            except ValueError:
+                raise HTTPException(status_code=422, detail="Invalid category for income transaction")
+
+    for field, value in transaction_update.model_dump(exclude_unset=True).items():
+        setattr(transaction, field, value)
+
+    await db.commit()
+    await db.refresh(transaction)
+    return BaseResponse(data=transaction)
+
 
 @app.delete("/api/v1/transactions/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_transaction(transaction_id: UUID, db: AsyncSession = Depends(get_db)):
