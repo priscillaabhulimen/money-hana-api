@@ -210,16 +210,23 @@ async def update_transaction(transaction_id: UUID, transaction_update: Transacti
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
-    if transaction_update.category is not None:
-        effective_type = transaction_update.transaction_type or transaction.transaction_type
+    # Validate category/type consistency both when a new category is provided
+    # and when only the transaction_type changes but an existing category is present.
+    effective_type = transaction_update.transaction_type or transaction.transaction_type
+    category_to_validate = (
+        transaction_update.category
+        if transaction_update.category is not None
+        else transaction.category
+    )
+    if effective_type and category_to_validate is not None:
         if effective_type == "expense":
             try:
-                ExpenseCategory(transaction_update.category)
+                ExpenseCategory(category_to_validate)
             except ValueError:
                 raise HTTPException(status_code=422, detail="Invalid category for expense transaction")
         elif effective_type == "income":
             try:
-                IncomeCategory(transaction_update.category)
+                IncomeCategory(category_to_validate)
             except ValueError:
                 raise HTTPException(status_code=422, detail="Invalid category for income transaction")
 
