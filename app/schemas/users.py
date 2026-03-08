@@ -19,7 +19,13 @@ class UserBase(BaseModel):
         except ValueError:
             raise ValueError("Invalid user type")
         
-class UserCreate(UserBase):
+class Register(UserBase):
+    password: str
+
+class Login(BaseModel):
+    model_config = {"extra": "forbid"}
+    
+    email: EmailStr
     password: str
 
 class UserResponse(UserBase):
