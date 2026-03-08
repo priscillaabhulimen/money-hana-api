@@ -1,11 +1,17 @@
 import uuid
 from app.base import Base
-from sqlalchemy import Column, DateTime, String
+from sqlalchemy import Column, DateTime, String, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "user_type IN ('regular', 'premium')",
+            name="user_type_check",
+        ),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     first_name = Column(String, nullable=False)
