@@ -221,15 +221,16 @@ async def get_transactions(
 ):
     total_result = await db.execute(select(func.count()).select_from(Transaction))
     total = total_result.scalar()
+    offset = (page - 1) * limit
 
     result = await db.execute(
         select(Transaction)
         .order_by(Transaction.date.desc())
         .limit(limit)
-        .offset(page * limit)
+        .offset(offset)
     )
     transactions = result.scalars().all()
-    return PaginatedResponse(data=transactions, total=total, limit=limit, offset=page * limit)
+    return PaginatedResponse(data=transactions, total=total, limit=limit, offset=offset)
 
 
 @app.get("/api/v1/transactions/{transaction_id}", response_model=BaseResponse[TransactionResponse])
