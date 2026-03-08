@@ -1,13 +1,13 @@
 
 from fastapi import Depends, status, APIRouter, HTTPException
-from sqlalchemy import text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
 from app.database import get_db
 from app.models import User
-from app.schemas import BaseResponse, Register, UserResponse, Login
-from app.utils import hash, verify
+from app.schemas import BaseResponse, Register, Login, UserResponse, AuthResponse
+from app.utils import hash, verify, create_access_token
 
 router = APIRouter(
     prefix="/api/v1",
@@ -33,13 +33,23 @@ async def register_user(user: Register, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=409, detail="Email already registered")
     return BaseResponse(data=UserResponse.model_validate(new_user))
 
-@router.post("/login", response_model=BaseResponse[UserResponse])
+@router.post("/login", response_model=BaseResponse[AuthResponse])
 async def login(data: Login, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        text("SELECT * FROM users WHERE email = :email"),
-        {"email": data.email}
+        select(User).where(User.email == data.email)
     )
-    user = result.scalar_one_or_none()
+    user = result.scalars().first()
     if not user or not verify(data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    return BaseResponse(data=UserResponse.model_validate(user))
+
+    access_token = create_access_token({"sub": str(user.id), "email": user.email})
+    response_data = AuthResponse(
+        id=user.id,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        email=user.email,
+        user_type=user.user_type,
+        created_at=user.created_at,
+        access_token=access_token,
+    )
+    return BaseResponse(data=response_data)

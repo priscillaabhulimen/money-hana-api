@@ -33,3 +33,7 @@ class UserResponse(UserBase):
 
     id: UUID
     created_at: datetime
+
+class AuthResponse(UserResponse):
+    access_token: str
+    token_type: str = "bearer"
