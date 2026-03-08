@@ -62,6 +62,10 @@ class TransactionUpdate(BaseModel):
     date: datetime.date | None = None
     note: str | None = None
 
+    # Note: category/type cross-validation is intentionally handled in the
+    # update_transaction endpoint in main.py, where the existing transaction
+    # record is available to resolve the effective transaction_type.
+
     @field_validator("date", mode="before")
     @classmethod
     def validate_date(cls, v):
@@ -73,6 +77,7 @@ class TransactionUpdate(BaseModel):
             return datetime.datetime.strptime(v, "%Y-%m-%d").date()
         except Exception:
             raise ValueError("Invalid date format")
+
     @field_validator("transaction_type", mode="before")
     @classmethod
     def validate_transaction_type(cls, v):
@@ -82,7 +87,6 @@ class TransactionUpdate(BaseModel):
             return TransactionType(v)
         except ValueError:
             raise ValueError("Invalid transaction type")
-
 
 class TransactionResponse(TransactionBase):
     model_config = {"from_attributes": True, "extra": "ignore"}
