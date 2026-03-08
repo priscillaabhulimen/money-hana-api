@@ -12,4 +12,5 @@ class User(Base):
     last_name = Column(String, nullable=False)
     password_hash = Column(String, nullable=False)
     email = Column(String, nullable=False, unique=True)
+    user_type = Column(String, nullable=False, default="regular")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
