@@ -4,8 +4,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.openapi.utils import get_openapi
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, extract
-from datetime import datetime, timezone
+from sqlalchemy import select, func, extract, text
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 import logging
@@ -115,13 +115,13 @@ app.openapi = custom_openapi
 @app.get("/health")
 async def db_health_check(db: AsyncSession = Depends(get_db)):
     try:
-        await db.execute(select(1))
+        await db.execute(text("SELECT 1"))
         return {"status": "ok"}
     except Exception:
         logger.exception("Database health check failed")
         raise HTTPException(status_code=503, detail="Database unavailable")
-
-
+    
+    
 # TODO: Replace with real user management in Week 4
 TEMP_USER_ID = UUID("ef73d89b-3d2d-4658-8b79-20a06c06d5cd")
 
@@ -145,20 +145,19 @@ async def get_current_spend_all(db: AsyncSession, user_id: UUID) -> dict[str, De
     )
     return {row.category: row.total for row in result.all()}
 
+def enrich_goal_response(goal: Goal, spend_by_category: dict[str, Decimal]) -> GoalResponse:
+    goal_response = GoalResponse.model_validate(goal)
+    goal_response.current_spend = spend_by_category.get(goal.category, Decimal(0))
+    return goal_response
+
+
+
 @app.get("/api/v1/goals", response_model=BaseResponse[list[GoalResponse]])
 async def get_goals(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Goal))
     goals = result.scalars().all()
-
     spend_by_category = await get_current_spend_all(db, TEMP_USER_ID)
-
-    response = []
-    for goal in goals:
-        goal_response = GoalResponse.model_validate(goal)
-        goal_response.current_spend = spend_by_category.get(goal.category, Decimal(0))
-        response.append(goal_response)
-
-    return BaseResponse(data=response)
+    return BaseResponse(data=[enrich_goal_response(g, spend_by_category) for g in goals])
 
 
 @app.get("/api/v1/goals/{goal_id}", response_model=BaseResponse[GoalResponse])
@@ -167,12 +166,8 @@ async def get_goal(goal_id: UUID, db: AsyncSession = Depends(get_db)):
     goal = result.scalar_one_or_none()
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
-
     spend_by_category = await get_current_spend_all(db, TEMP_USER_ID)
-    goal_response = GoalResponse.model_validate(goal)
-    goal_response.current_spend = spend_by_category.get(goal.category, Decimal(0))
-
-    return BaseResponse(data=goal_response)
+    return BaseResponse(data=enrich_goal_response(goal, spend_by_category))
 
 
 @app.post("/api/v1/goals", response_model=BaseResponse[GoalResponse], status_code=status.HTTP_201_CREATED)
@@ -181,12 +176,8 @@ async def create_goal(goal: GoalCreate, db: AsyncSession = Depends(get_db)):
     db.add(new_goal)
     await db.commit()
     await db.refresh(new_goal)
-
     spend_by_category = await get_current_spend_all(db, TEMP_USER_ID)
-    goal_response = GoalResponse.model_validate(new_goal)
-    goal_response.current_spend = spend_by_category.get(new_goal.category, Decimal(0))
-
-    return BaseResponse(data=goal_response)
+    return BaseResponse(data=enrich_goal_response(new_goal, spend_by_category))
 
 
 @app.patch("/api/v1/goals/{goal_id}", response_model=BaseResponse[GoalResponse])
@@ -195,18 +186,13 @@ async def update_goal(goal_id: UUID, goal_update: GoalUpdate, db: AsyncSession =
     goal = result.scalar_one_or_none()
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
-
     for field, value in goal_update.model_dump(exclude_unset=True).items():
         setattr(goal, field, value)
-
     await db.commit()
     await db.refresh(goal)
-
     spend_by_category = await get_current_spend_all(db, TEMP_USER_ID)
-    goal_response = GoalResponse.model_validate(goal)
-    goal_response.current_spend = spend_by_category.get(goal.category, Decimal(0))
+    return BaseResponse(data=enrich_goal_response(goal, spend_by_category))
 
-    return BaseResponse(data=goal_response)
 
 @app.delete("/api/v1/goals/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_goal(goal_id: UUID, db: AsyncSession = Depends(get_db)):
@@ -258,44 +244,36 @@ async def create_transaction(transaction: TransactionCreate, db: AsyncSession = 
     return BaseResponse(data=new_transaction)
 
 
-@app.patch("/api/v1/transactions/{transaction_id}", response_model=BaseResponse[TransactionResponse])
-async def update_transaction(transaction_id: UUID, transaction_update: TransactionUpdate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Transaction).where(Transaction.id == transaction_id))
-    transaction = result.scalar_one_or_none()
-    if not transaction:
-        raise HTTPException(status_code=404, detail="Transaction not found")
+@app.get("/api/v1/transactions", response_model=PaginatedResponse[list[TransactionResponse]])
+async def get_transactions(
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(default=30, ge=1, le=100),
+    page: int = Query(default=1, ge=1),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+):
+    offset = (page - 1) * limit
 
-    # Validate category/type consistency both when a new category is provided
-    # and when only the transaction_type changes but an existing category is present.
-    effective_type = (
-        transaction_update.transaction_type
-        if transaction_update.transaction_type is not None
-        else transaction.transaction_type
+    filters = []
+    if start_date:
+        filters.append(Transaction.date >= start_date)
+    if end_date:
+        filters.append(Transaction.date <= end_date)
+
+    total_result = await db.execute(
+        select(func.count()).select_from(Transaction).where(*filters)
     )
-    category_to_validate = (
-        transaction_update.category
-        if transaction_update.category is not None
-        else transaction.category
+    total = total_result.scalar()
+
+    result = await db.execute(
+        select(Transaction)
+        .where(*filters)
+        .order_by(Transaction.date.desc())
+        .limit(limit)
+        .offset(offset)
     )
-    if effective_type and category_to_validate is not None:
-        if effective_type == TransactionType.expense:
-            try:
-                ExpenseCategory(category_to_validate)
-            except ValueError:
-                raise HTTPException(status_code=422, detail="Invalid category for expense transaction")
-        elif effective_type == TransactionType.income:
-            try:
-                IncomeCategory(category_to_validate)
-            except ValueError:
-                raise HTTPException(status_code=422, detail="Invalid category for income transaction")
-
-    for field, value in transaction_update.model_dump(exclude_unset=True).items():
-        setattr(transaction, field, value)
-
-    await db.commit()
-    await db.refresh(transaction)
-    return BaseResponse(data=transaction)
-
+    transactions = result.scalars().all()
+    return PaginatedResponse(data=transactions, total=total, limit=limit, page=page)
 
 @app.delete("/api/v1/transactions/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_transaction(transaction_id: UUID, db: AsyncSession = Depends(get_db)):
