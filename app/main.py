@@ -11,7 +11,8 @@ import logging
 
 from app.schemas.base import BaseResponse, ErrorResponse
 from app.schemas.goals import GoalCreate, GoalResponse, GoalUpdate
-from app.models import Goal
+from app.models import Goal, Transaction
+from app.schemas.transactions import TransactionResponse, TransactionCreate, TransactionUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +116,9 @@ async def db_health_check(db: AsyncSession = Depends(get_db)):
     
 # TODO: Replace with real user management
 TEMP_USER_ID = UUID("ef73d89b-3d2d-4658-8b79-20a06c06d5cd")
-    
+
+
+# GOALS
 @app.get("/api/v1/goals", response_model=BaseResponse[list[GoalResponse]])
 async def get_goals(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Goal))
@@ -162,3 +165,51 @@ async def update_goal(goal_id: UUID, goal_update: GoalUpdate, db: AsyncSession =
     await db.commit()
     await db.refresh(goal)
     return BaseResponse(data=goal)
+
+# TRANSACTIONS
+@app.get("/api/v1/transactions", response_model=BaseResponse[list[TransactionResponse]])
+async def get_transactions(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Transaction))
+    transactions = result.scalars().all()
+    return BaseResponse(data=transactions)
+
+@app.get("/api/v1/transactions/{transaction_id}", response_model=BaseResponse[TransactionResponse])
+async def get_transaction(transaction_id: UUID, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Transaction).where(Transaction.id == transaction_id))
+    transaction = result.scalar_one_or_none()
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return BaseResponse(data=transaction)
+
+@app.post("/api/v1/transactions", response_model=BaseResponse[TransactionResponse], status_code=status.HTTP_201_CREATED)
+async def create_transaction(transaction: TransactionCreate, db: AsyncSession = Depends(get_db)):
+    new_transaction = Transaction(**transaction.model_dump(), user_id=TEMP_USER_ID)
+    db.add(new_transaction)
+    await db.commit()
+    await db.refresh(new_transaction)
+    return BaseResponse(data=new_transaction)
+
+
+@app.delete("/api/v1/transactions/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_transaction(transaction_id: UUID, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Transaction).where(Transaction.id == transaction_id))
+    transaction = result.scalar_one_or_none()
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    await db.delete(transaction)
+    await db.commit()
+    return
+
+@app.patch("/api/v1/transactions/{transaction_id}", response_model=BaseResponse[TransactionResponse])
+async def update_transaction(transaction_id: UUID, transaction_update: TransactionUpdate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Transaction).where(Transaction.id == transaction_id))
+    transaction = result.scalar_one_or_none()
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    for field, value in transaction_update.model_dump(exclude_unset=True).items():
+        setattr(transaction, field, value)
+    
+    await db.commit()
+    await db.refresh(transaction)
+    return BaseResponse(data=transaction)

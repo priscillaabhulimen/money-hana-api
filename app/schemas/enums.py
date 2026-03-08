@@ -15,3 +15,7 @@ class ExpenseCategory(str, Enum):
     education = "education"
     subscriptions = "subscriptions"
     other = "other"
+
+class TransactionType(str, Enum):
+    income = "income"
+    expense = "expense"
