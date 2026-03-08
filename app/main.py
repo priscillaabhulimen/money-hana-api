@@ -4,7 +4,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.openapi.utils import get_openapi
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, extract
+from datetime import datetime, timezone
+from decimal import Decimal
 from uuid import UUID
 import logging
 
@@ -126,11 +128,32 @@ TEMP_USER_ID = UUID("ef73d89b-3d2d-4658-8b79-20a06c06d5cd")
 
 # ── Goals ─────────────────────────────────────────────────────────────────────
 
+async def get_current_spend(db: AsyncSession, user_id: UUID, category: str) -> Decimal:
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(func.coalesce(func.sum(Transaction.amount), 0))
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.category == category,
+            Transaction.transaction_type == "expense",
+            extract("month", Transaction.date) == now.month,
+            extract("year", Transaction.date) == now.year,
+        )
+    )
+    return result.scalar()
+
 @app.get("/api/v1/goals", response_model=BaseResponse[list[GoalResponse]])
 async def get_goals(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Goal))
     goals = result.scalars().all()
-    return BaseResponse(data=goals)
+    response = []
+    for goal in goals:
+        current_spend = await get_current_spend(db, goal.user_id, goal.category)
+        response.append(GoalResponse(
+            **GoalResponse.model_validate(goal).model_dump(),
+            current_spend=current_spend
+        ))
+    return BaseResponse(data=response)
 
 
 @app.get("/api/v1/goals/{goal_id}", response_model=BaseResponse[GoalResponse])
@@ -139,7 +162,11 @@ async def get_goal(goal_id: UUID, db: AsyncSession = Depends(get_db)):
     goal = result.scalar_one_or_none()
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
-    return BaseResponse(data=goal)
+    current_spend = await get_current_spend(db, goal.user_id, goal.category)
+    return BaseResponse(data=GoalResponse(
+        **GoalResponse.model_validate(goal).model_dump(),
+        current_spend=current_spend
+    ))
 
 
 @app.post("/api/v1/goals", response_model=BaseResponse[GoalResponse], status_code=status.HTTP_201_CREATED)
@@ -148,7 +175,11 @@ async def create_goal(goal: GoalCreate, db: AsyncSession = Depends(get_db)):
     db.add(new_goal)
     await db.commit()
     await db.refresh(new_goal)
-    return BaseResponse(data=new_goal)
+    current_spend = await get_current_spend(db, new_goal.user_id, new_goal.category)
+    return BaseResponse(data=GoalResponse(
+        **GoalResponse.model_validate(new_goal).model_dump(),
+        current_spend=current_spend
+    ))
 
 
 @app.patch("/api/v1/goals/{goal_id}", response_model=BaseResponse[GoalResponse])
@@ -163,7 +194,11 @@ async def update_goal(goal_id: UUID, goal_update: GoalUpdate, db: AsyncSession =
 
     await db.commit()
     await db.refresh(goal)
-    return BaseResponse(data=goal)
+    current_spend = await get_current_spend(db, goal.user_id, goal.category)
+    return BaseResponse(data=GoalResponse(
+        **GoalResponse.model_validate(goal).model_dump(),
+        current_spend=current_spend
+    ))
 
 
 @app.delete("/api/v1/goals/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
