@@ -137,7 +137,7 @@ async def get_current_spend_all(db: AsyncSession, user_id: UUID) -> dict[str, De
         )
         .where(
             Transaction.user_id == user_id,
-            Transaction.transaction_type == "expense",
+            Transaction.transaction_type == TransactionType.expense,
             extract("month", Transaction.date) == now.month,
             extract("year", Transaction.date) == now.year,
         )
