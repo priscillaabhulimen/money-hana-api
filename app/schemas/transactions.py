@@ -1,17 +1,17 @@
 import datetime
 from uuid import UUID
 from decimal import Decimal
-from typing import Union
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from app.schemas.enums import TransactionType, ExpenseCategory, IncomeCategory
+
 
 class TransactionBase(BaseModel):
     model_config = {"extra": "forbid"}
 
     transaction_type: TransactionType
-    category: Union[ExpenseCategory, IncomeCategory]
+    category: str
     amount: Decimal
     date: datetime.date
     note: str | None = None
@@ -26,17 +26,6 @@ class TransactionBase(BaseModel):
         except Exception:
             raise ValueError("Invalid date format")
 
-    @field_validator("category", mode="before")
-    @classmethod
-    def validate_category(cls, v):
-        try:
-            if cls.transaction_type == TransactionType.expense:
-                return ExpenseCategory(v)
-            else:
-                return IncomeCategory(v)
-        except ValueError:
-            raise ValueError("Invalid category")
-
     @field_validator("transaction_type", mode="before")
     @classmethod
     def validate_transaction_type(cls, v):
@@ -45,42 +34,44 @@ class TransactionBase(BaseModel):
         except ValueError:
             raise ValueError("Invalid transaction type")
 
+    @model_validator(mode="after")
+    def validate_category_matches_type(self):
+        if self.transaction_type == TransactionType.expense:
+            try:
+                ExpenseCategory(self.category)
+            except ValueError:
+                raise ValueError("Invalid category")
+        elif self.transaction_type == TransactionType.income:
+            try:
+                IncomeCategory(self.category)
+            except ValueError:
+                raise ValueError("Invalid category")
+        return self
+
+
 class TransactionCreate(TransactionBase):
     pass
+
 
 class TransactionUpdate(BaseModel):
     model_config = {"extra": "forbid"}
 
     transaction_type: TransactionType | None = None
-    category: Union[ExpenseCategory, IncomeCategory] | None = None
+    category: str | None = None
     amount: Decimal | None = None
     date: datetime.date | None = None
     note: str | None = None
-
-    @field_validator("category", mode="before")
-    @classmethod
-    def validate_category(cls, v):
-        try:
-            if v is None:
-                return v
-            
-            if cls.transaction_type == TransactionType.expense:
-                return ExpenseCategory(v)
-            else:
-                return IncomeCategory(v)
-        except ValueError:
-            raise ValueError("Invalid category")
 
     @field_validator("transaction_type", mode="before")
     @classmethod
     def validate_transaction_type(cls, v):
         if v is None:
             return v
-        
         try:
             return TransactionType(v)
         except ValueError:
             raise ValueError("Invalid transaction type")
+
 
 class TransactionResponse(TransactionBase):
     model_config = {"from_attributes": True, "extra": "ignore"}
