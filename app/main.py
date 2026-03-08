@@ -14,7 +14,7 @@ from app.database import engine, get_db
 from app.schemas.base import BaseResponse, ErrorResponse
 from app.schemas.goals import GoalCreate, GoalResponse, GoalUpdate
 from app.schemas.transactions import TransactionCreate, TransactionResponse, TransactionUpdate
-from app.schemas.enums import ExpenseCategory, IncomeCategory
+from app.schemas.enums import ExpenseCategory, IncomeCategory, TransactionType
 from app.models import Goal, Transaction
 
 logger = logging.getLogger(__name__)
@@ -135,7 +135,7 @@ async def get_current_spend(db: AsyncSession, user_id: UUID, category: str) -> D
         .where(
             Transaction.user_id == user_id,
             Transaction.category == category,
-            Transaction.transaction_type == "expense",
+            Transaction.transaction_type == TransactionType.expense,
             extract("month", Transaction.date) == now.month,
             extract("year", Transaction.date) == now.year,
         )
@@ -254,12 +254,12 @@ async def update_transaction(transaction_id: UUID, transaction_update: Transacti
         else transaction.category
     )
     if effective_type and category_to_validate is not None:
-        if effective_type == "expense":
+        if effective_type == TransactionType.expense:
             try:
                 ExpenseCategory(category_to_validate)
             except ValueError:
                 raise HTTPException(status_code=422, detail="Invalid category for expense transaction")
-        elif effective_type == "income":
+        elif effective_type == TransactionType.income:
             try:
                 IncomeCategory(category_to_validate)
             except ValueError:
