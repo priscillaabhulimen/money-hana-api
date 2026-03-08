@@ -11,3 +11,10 @@ class BaseResponse(BaseModel, Generic[T]):
 class ErrorResponse(BaseModel):
     status: str = "error"
     message: str
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    status: str = "success"
+    data: T
+    total: int
+    limit: int
+    page: int

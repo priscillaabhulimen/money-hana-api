@@ -27,8 +27,9 @@ class GoalUpdate(BaseModel):
     monthly_limit: Decimal | None = None
 
 class GoalResponse(GoalBase):
-    model_config = {"from_attributes": True, "extra": "forbid"}
+    model_config = {"from_attributes": True, "extra": "ignore"}
 
     id: UUID
     user_id: UUID
+    current_spend: Decimal = Decimal(0)
     created_at: datetime
