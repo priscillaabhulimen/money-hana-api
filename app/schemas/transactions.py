@@ -1,8 +1,8 @@
 import datetime
 from uuid import UUID
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, field_validator, model_validator, Field
 
 from app.schemas.enums import TransactionType, ExpenseCategory, IncomeCategory
 
@@ -12,7 +12,7 @@ class TransactionBase(BaseModel):
 
     transaction_type: TransactionType
     category: str
-    amount: Decimal
+    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     date: datetime.date
     note: str | None = None
 
@@ -33,6 +33,15 @@ class TransactionBase(BaseModel):
             return TransactionType(v)
         except ValueError:
             raise ValueError("Invalid transaction type")
+
+    @field_validator("amount", mode="before")
+    @classmethod
+    def normalize_amount(cls, v):
+        try:
+            d = Decimal(str(v))
+        except (InvalidOperation, ValueError, TypeError):
+            raise ValueError("Invalid amount")
+        return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     @model_validator(mode="after")
     def validate_category_matches_type(self):
@@ -58,7 +67,7 @@ class TransactionUpdate(BaseModel):
 
     transaction_type: TransactionType | None = None
     category: str | None = None
-    amount: Decimal | None = None
+    amount: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
     date: datetime.date | None = None
     note: str | None = None
 
@@ -77,6 +86,17 @@ class TransactionUpdate(BaseModel):
             return datetime.datetime.strptime(v, "%Y-%m-%d").date()
         except Exception:
             raise ValueError("Invalid date format")
+    
+    @field_validator("amount", mode="before")
+    @classmethod
+    def normalize_amount(cls, v):
+        if v is None:
+            return v
+        try:
+            d = Decimal(str(v))
+        except (InvalidOperation, ValueError, TypeError):
+            raise ValueError("Invalid amount")
+        return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     @field_validator("transaction_type", mode="before")
     @classmethod
@@ -87,6 +107,7 @@ class TransactionUpdate(BaseModel):
             return TransactionType(v)
         except ValueError:
             raise ValueError("Invalid transaction type")
+
 
 class TransactionResponse(TransactionBase):
     model_config = {"from_attributes": True, "extra": "ignore"}

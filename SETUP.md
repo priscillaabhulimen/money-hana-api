@@ -1,57 +1,95 @@
-# SETUP PROJECT
+# Setup Guide
 
-### 1. Install Python
-- [ ] Go to the [Python Downloads](https://www.python.org/downloads/) page
-- [ ] Download and install Python 3.12 or higher
-- [ ] Test by running:
+Use this guide for first-time local setup.
 
-      python3 --version
-- [ ] Install the **Python** VSCode Extension by **Microsoft**
-- [ ] Install the **Pylance** VSCode Extension by **Microsoft**
+## 1. Prerequisites
 
-### 2. Set up virtual environment
-- [ ] In your project directory, run:
+- Python 3.12+
+- PostgreSQL database accessible from your machine
 
-      python3 -m venv venv
-- [ ] Open View > Command Palette > Python: Select Interpreter
-- [ ] Select the virtual environment you just created, or enter the path manually:
+Optional but recommended in VS Code:
 
-      ./venv/bin/python
-- [ ] Activate the virtual environment in your terminal:
+- `Python` extension (Microsoft)
+- `Pylance` extension (Microsoft)
 
-      source venv/bin/activate
-- [ ] Confirm it's active — your terminal prompt should show `(venv)`
-- [ ] Add `venv/` to your `.gitignore` if not already there
+Check Python:
 
-### 3. Install dependencies
-- [ ] Confirm your terminal is running inside the virtual environment
-- [ ] Run:
+```bash
+python3 --version
+```
 
-      pip install fastapi[standard] uvicorn[standard] "sqlalchemy[asyncio]" asyncpg pydantic python-dotenv alembic
-- [ ] Save your dependencies to requirements.txt:
+## 2. Create Virtual Environment
 
-      pip freeze > requirements.txt
-- [ ] Verify installed packages:
+From the project root:
 
-      pip freeze
+```bash
+python3 -m venv venv
+source venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+```
 
-### 4. Configure environment variables
-- [ ] Create a `.env` file in the project root
-- [ ] Add the following variables:
+## 3. Install Project Dependencies
 
-      DATABASE_URL=postgresql+asyncpg://username:%40password@127.0.0.1:5432/moneyhana_dev
-      DEBUG_SQL=true
-- [ ] Note: if your password contains special characters, URL-encode them (e.g. `@` → `%40`)
-- [ ] Confirm `.env` is in your `.gitignore`
-- [ ] Commit `.env.example` to GitHub with placeholder values:
+Install pinned dependencies:
 
-      DATABASE_URL=postgresql+asyncpg://username:password@localhost:5432/moneyhana_dev
-      DEBUG_SQL=false
+```bash
+pip install -r requirements.txt
+```
 
-### 5. Verify FastAPI is working
-- [ ] Start the dev server:
+## 4. Configure Environment Variables
 
-      uvicorn app.main:app --reload
-- [ ] Open your browser at `http://127.0.0.1:8000/docs`
-- [ ] Confirm `/health` returns `{"status": "ok"}`
-- [ ] Confirm `/health/db` returns `{"status": "ok"}` — verifies database connection
+Create a local env file:
+
+```bash
+cp .env.example .env
+```
+
+Set at least the following values in `.env`:
+
+```env
+DATABASE_URL=postgresql+asyncpg://<username>:<password>@<host>:<port>/<database-name>
+AUTH_SECRET_KEY=<your-secret-key>
+ALLOWED_ORIGINS=http://localhost:3000
+```
+
+Optional value for SQL query logging:
+
+```env
+DEBUG_SQL=true
+```
+
+If you set `EMAIL_PROVIDER=resend` or `EMAIL_PROVIDER=render`, also configure:
+
+```env
+RESEND_API_KEY=<your-resend-api-key>
+EMAIL_FROM=<verified-sender-email>
+```
+
+If your password contains reserved URL characters (for example `@`), URL-encode them.
+
+## 5. Database Schema
+
+This repository does not currently include Alembic migration files.
+
+In `APP_ENV=development`, the app auto-creates schema tables on startup using `Base.metadata.create_all(...)` (via `init_models()`).
+
+In non-development environments, schema auto-creation is disabled. Use migrations to ensure schema is up to date.
+
+The expected tables are:
+
+- `users`
+- `transactions`
+- `goals`
+
+See `MIGRATION.md` for the migration workflow and recommended move to versioned migrations.
+
+## 6. Run the API
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Useful endpoints:
+
+- `http://127.0.0.1:8000/docs`
+- `GET /health` (includes a database connectivity check)

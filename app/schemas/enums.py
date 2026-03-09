@@ -19,3 +19,7 @@ class ExpenseCategory(str, Enum):
 class TransactionType(str, Enum):
     income = "income"
     expense = "expense"
+
+class UserType(str, Enum):
+    regular = "regular"
+    premium = "premium"
