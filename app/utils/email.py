@@ -109,7 +109,7 @@ async def send_verification_email(email: str, token: str) -> None:
                         ),
                     }
                 )
-            response.raise_for_status()
+                response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             detail = exc.response.text.strip()
             raise EmailDeliveryError(
