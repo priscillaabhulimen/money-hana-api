@@ -2,7 +2,7 @@
 import asyncio
 import logging
 from fastapi import Depends, status, APIRouter, HTTPException, Response, Request
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from datetime import timedelta, datetime, timezone
@@ -86,6 +86,14 @@ def _new_refresh_token(user: User) -> tuple[str, str, datetime]:
     return token, jti, expires_at
 
 
+async def _prune_refresh_tokens(db: AsyncSession, now: datetime) -> None:
+    await db.execute(
+        delete(RefreshToken).where(
+            (RefreshToken.expires_at <= now) | (RefreshToken.revoked_at.is_not(None))
+        )
+    )
+
+
 async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> User:
     token = request.cookies.get("access_token")
     if not token:
@@ -135,7 +143,7 @@ async def register_user(user: Register, db: AsyncSession = Depends(get_db)):
     except IntegrityError:
         await db.rollback()
         logger.warning("Registration failed due to integrity constraint")
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Registration could not be completed")
+        raise HTTPException(status_code=400, detail="Registration could not be completed")
 
     verification_token = create_access_token(
         {
@@ -183,6 +191,7 @@ async def login(data: Login, response: Response, db: AsyncSession = Depends(get_
             expires_at=refresh_expires_at,
         )
     )
+    await _prune_refresh_tokens(db, datetime.now(timezone.utc))
     await db.commit()
     _set_auth_cookies(response, access_token, refresh_token)
 
@@ -215,14 +224,19 @@ async def refresh_session(request: Request, response: Response, db: AsyncSession
     token_hash = hash_token(refresh_cookie)
     now = datetime.now(timezone.utc)
 
-    token_result = await db.execute(
-        select(RefreshToken).where(
+    revoke_result = await db.execute(
+        update(RefreshToken)
+        .where(
             RefreshToken.token_hash == token_hash,
+            RefreshToken.user_id == user_id,
             RefreshToken.revoked_at.is_(None),
+            RefreshToken.expires_at > now,
         )
+        .values(revoked_at=now)
+        .returning(RefreshToken.user_id)
     )
-    token_row = token_result.scalars().one_or_none()
-    if not token_row or token_row.user_id != user_id or token_row.expires_at <= now:
+    rotated_user_id = revoke_result.scalar_one_or_none()
+    if not rotated_user_id:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 
     user_result = await db.execute(select(User).where(User.id == user_id))
@@ -232,7 +246,6 @@ async def refresh_session(request: Request, response: Response, db: AsyncSession
     if not user.is_verified:
         raise HTTPException(status_code=403, detail="Email not verified")
 
-    token_row.revoked_at = now
     new_refresh_token, _, new_refresh_expires_at = _new_refresh_token(user)
     db.add(
         RefreshToken(
@@ -241,6 +254,7 @@ async def refresh_session(request: Request, response: Response, db: AsyncSession
             expires_at=new_refresh_expires_at,
         )
     )
+    await _prune_refresh_tokens(db, now)
 
     access_token = _new_access_token(user)
     await db.commit()
@@ -265,8 +279,8 @@ async def logout(request: Request, response: Response, db: AsyncSession = Depend
             token_row.revoked_at = datetime.now(timezone.utc)
             await db.commit()
 
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/api/v1/refresh")
+    response.delete_cookie("access_token", path="/refresh")
+    response.delete_cookie("refresh_token", path="/refresh")
     return BaseResponse(data={"status": "ok"}, message="Logged out")
 
 
