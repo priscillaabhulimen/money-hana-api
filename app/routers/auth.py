@@ -6,7 +6,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from datetime import timedelta, datetime, timezone
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from app.database import get_db
 from app.config import settings
@@ -70,20 +70,18 @@ def _new_access_token(user: User) -> str:
     )
 
 
-def _new_refresh_token(user: User) -> tuple[str, str, datetime]:
+def _new_refresh_token(user: User) -> tuple[str, datetime]:
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    jti = str(uuid4())
     token = create_access_token(
         {
             "sub": str(user.id),
             "email": user.email,
             "purpose": "refresh",
-            "jti": jti,
         },
         expires_delta=timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
     )
-    return token, jti, expires_at
+    return token, expires_at
 
 
 async def _prune_refresh_tokens(db: AsyncSession, now: datetime) -> None:
@@ -183,7 +181,7 @@ async def login(data: Login, response: Response, db: AsyncSession = Depends(get_
         raise HTTPException(status_code=403, detail="Email not verified")
 
     access_token = _new_access_token(user)
-    refresh_token, _, refresh_expires_at = _new_refresh_token(user)
+    refresh_token, refresh_expires_at = _new_refresh_token(user)
     db.add(
         RefreshToken(
             user_id=user.id,
@@ -246,7 +244,7 @@ async def refresh_session(request: Request, response: Response, db: AsyncSession
     if not user.is_verified:
         raise HTTPException(status_code=403, detail="Email not verified")
 
-    new_refresh_token, _, new_refresh_expires_at = _new_refresh_token(user)
+    new_refresh_token, new_refresh_expires_at = _new_refresh_token(user)
     db.add(
         RefreshToken(
             user_id=user.id,
