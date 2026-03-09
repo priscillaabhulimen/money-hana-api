@@ -19,7 +19,13 @@ from app.schemas import (
     VerifyEmailRequest,
     ResendVerificationRequest,
 )
-from app.utils import hash_password, verify, create_access_token, decode_access_token
+from app.utils import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    decode_access_token,
+    DUMMY_PASSWORD_HASH,
+)
 from app.utils.email import send_verification_email, EmailDeliveryError
 
 router = APIRouter(
@@ -77,7 +83,8 @@ async def login(data: Login, db: AsyncSession = Depends(get_db)):
         select(User).where(User.email == data.email)
     )
     user = result.scalars().first()
-    password_ok = user and await asyncio.to_thread(verify, data.password, user.password_hash)
+    stored_hash = user.password_hash if user else DUMMY_PASSWORD_HASH
+    password_ok = await asyncio.to_thread(verify_password, data.password, stored_hash)
     if not user or not password_ok:
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not user.is_verified:

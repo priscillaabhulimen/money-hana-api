@@ -19,7 +19,8 @@ def _password_digest(password: str) -> bytes:
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(_password_digest(password), bcrypt.gensalt()).decode("utf-8")
 
-def verify(plain_password: str, hashed_password: str) -> bool:
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
         return bcrypt.checkpw(
             _password_digest(plain_password),
@@ -27,6 +28,14 @@ def verify(plain_password: str, hashed_password: str) -> bool:
         )
     except ValueError:
         return False
+
+
+# Use a throwaway hash so missing-user and wrong-password paths do equivalent
+# bcrypt work, reducing timing side-channel leakage during login.
+DUMMY_PASSWORD_HASH = hash_password("moneyhana_dummy_password")
+
+# Backward compatibility alias.
+verify = verify_password
 
 
 def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
