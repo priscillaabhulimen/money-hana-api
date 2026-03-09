@@ -56,4 +56,4 @@ async def send_verification_email(email: str, token: str) -> None:
         return
 
     # Default free scaffold mode: log verification link locally.
-    logger.info("Email verification link for %s: %s", email, verification_url)
+    logger.debug("Email verification link for %s: %s", email, verification_url)
