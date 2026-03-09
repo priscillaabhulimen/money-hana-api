@@ -7,9 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 import logging
-import os
 
-from app.database import engine, get_db
+from app.database import engine, get_db, init_models
+from app.config import settings
 from app.schemas.base import ErrorResponse
 from app.utils import ERROR_MESSAGES, custom_openapi
 from app.routers import auth, transactions, goals
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await init_models()
     yield
     await engine.dispose()
 
@@ -25,10 +26,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="MoneyHana API", lifespan=lifespan)
 
 
-raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
-origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
-if not origins:
-    origins = ["http://localhost:3000"]
+origins = settings.allowed_origins_list
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,7 +35,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

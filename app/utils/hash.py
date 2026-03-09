@@ -1,33 +1,34 @@
-import os
 import jwt
+import bcrypt
+import hashlib
 
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any
-from dotenv import load_dotenv
-from passlib.context import CryptContext
+from app.config import settings
+
+SECRET_KEY = settings.auth_secret_key
+ALGORITHM = settings.auth_algorithm
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.auth_access_token_expire_minutes
 
 
-# Load local .env for utility usage in contexts where app.database is not imported first.
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
-
-SECRET_KEY = os.getenv("AUTH_SECRET_KEY") or os.getenv("JWT_SECRET_KEY")
-ALGORITHM = os.getenv("AUTH_ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("AUTH_ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def _password_digest(password: str) -> bytes:
+    # Pre-hash avoids bcrypt's 72-byte input limit while keeping deterministic verification.
+    return hashlib.sha256(password.encode("utf-8")).digest()
 
 def hash(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(_password_digest(password), bcrypt.gensalt()).decode("utf-8")
 
 def verify(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(
+            _password_digest(plain_password),
+            hashed_password.encode("utf-8"),
+        )
+    except ValueError:
+        return False
 
 
 def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
-    if not SECRET_KEY:
-        raise ValueError("AUTH_SECRET_KEY is not set")
-
     payload = data.copy()
     now = datetime.now(timezone.utc)
     expire = now + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
@@ -36,9 +37,6 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
 
 
 def decode_access_token(token: str) -> dict[str, Any]:
-    if not SECRET_KEY:
-        raise ValueError("AUTH_SECRET_KEY is not set")
-
     try:
         payload = jwt.decode(
             token,
