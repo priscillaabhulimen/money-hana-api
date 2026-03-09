@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     )
 
     database_url: str = Field(validation_alias="DATABASE_URL")
+    app_env: Literal["development", "staging", "production"] = Field(
+        default="development",
+        validation_alias="APP_ENV",
+    )
     debug_sql: bool = Field(default=False, validation_alias="DEBUG_SQL")
     allowed_origins: str = Field(default="http://localhost:3000", validation_alias="ALLOWED_ORIGINS")
 
@@ -47,6 +51,8 @@ class Settings(BaseSettings):
                 raise ValueError("RESEND_API_KEY is required when EMAIL_PROVIDER=resend")
             if not self.email_from:
                 raise ValueError("EMAIL_FROM is required when EMAIL_PROVIDER=resend")
+        if self.email_test_recipient and self.app_env != "development":
+            raise ValueError("EMAIL_TEST_RECIPIENT is allowed only when APP_ENV=development")
         return self
 
 

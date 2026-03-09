@@ -18,7 +18,11 @@ def build_verification_url(token: str) -> str:
 async def send_verification_email(email: str, token: str) -> None:
     provider = settings.email_provider
     verification_url = build_verification_url(token)
-    recipient = settings.email_test_recipient or email
+    recipient = (
+        settings.email_test_recipient
+        if settings.app_env == "development" and settings.email_test_recipient
+        else email
+    )
 
     if provider == "resend":
         try:
