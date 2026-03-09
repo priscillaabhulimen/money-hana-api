@@ -120,7 +120,7 @@ def verification_email(verification_url: str) -> str:
                     <table cellpadding="0" cellspacing="0" role="presentation" style="margin-bottom:28px;">
                       <tr>
                         <td style="background:#ede9fe;border-radius:12px;padding:14px;width:48px;height:48px;text-align:center;">
-                          <img src="https://api.iconify.design/lucide:mail-check.svg?color=%235c5cff" width="24" height="24" alt="" style="display:block;" />
+                          <span style="display:inline-block;font-size:20px;line-height:24px;color:#5c5cff;">✓</span>
                         </td>
                       </tr>
                     </table>
