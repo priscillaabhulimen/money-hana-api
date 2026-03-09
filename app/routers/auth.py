@@ -266,7 +266,7 @@ async def logout(request: Request, response: Response, db: AsyncSession = Depend
             await db.commit()
 
     response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/api/v1")
+    response.delete_cookie("refresh_token", path="/api/v1/refresh")
     return BaseResponse(data={"status": "ok"}, message="Logged out")
 
 
