@@ -16,7 +16,7 @@ def _password_digest(password: str) -> bytes:
     # Use hexdigest to avoid embedded null bytes that could be misinterpreted by some bcrypt implementations.
     return hashlib.sha256(password.encode("utf-8")).hexdigest().encode("ascii")
 
-def hash(password: str) -> str:
+def hash_password(password: str) -> str:
     return bcrypt.hashpw(_password_digest(password), bcrypt.gensalt()).decode("utf-8")
 
 def verify(plain_password: str, hashed_password: str) -> bool:
