@@ -66,9 +66,9 @@ If your password contains reserved URL characters (for example `@`), URL-encode 
 
 This repository does not currently include Alembic migration files.
 
-On startup, the app currently auto-creates schema tables using `Base.metadata.create_all(...)`.
+On startup, the app automatically creates the required schema tables using `Base.metadata.create_all(...)` (via `init_models()` during application startup), so you do not need to manually create them in your PostgreSQL database.
 
-The expected tables are:
+The tables created and used by the application are:
 
 - `users`
 - `transactions`
