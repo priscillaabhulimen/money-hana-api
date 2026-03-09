@@ -53,7 +53,9 @@ DEBUG_SQL=true
 
 This repository currently has no committed Alembic migration directory.
 
-The app currently creates schema tables automatically on startup using `Base.metadata.create_all(...)`.
+In `APP_ENV=development`, the app auto-creates schema tables on startup using `Base.metadata.create_all(...)`.
+
+In non-development environments, schema auto-creation is disabled. Apply migrations before running the API.
 
 Expected tables:
 
