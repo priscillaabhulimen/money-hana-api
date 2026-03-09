@@ -164,5 +164,5 @@ async def resend_verification(payload: ResendVerificationRequest, db: AsyncSessi
 
     return BaseResponse(
         data={"status": "queued"},
-        message="Verification email sent.",
+        message="If this email exists, a verification link has been sent.",
     )
