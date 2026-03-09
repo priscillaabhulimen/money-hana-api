@@ -3,7 +3,7 @@ from urllib.parse import urlencode
 
 import httpx
 from app.config import settings
-from app.utils import verification_email
+from app.utils.email_templates import verification_email
 
 logger = logging.getLogger(__name__)
 
