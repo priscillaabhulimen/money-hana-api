@@ -44,11 +44,15 @@ async def send_verification_email(email: str, token: str) -> None:
                 response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             detail = exc.response.text.strip()
-            raise EmailDeliveryError(
-                f"Resend rejected email request ({exc.response.status_code}): {detail}"
-            ) from exc
+            logger.error(
+                "Email provider rejected verification request: status=%s detail=%s",
+                exc.response.status_code,
+                detail,
+            )
+            raise EmailDeliveryError("Failed to send verification email") from exc
         except httpx.HTTPError as exc:
-            raise EmailDeliveryError("Failed to reach email provider") from exc
+            logger.exception("Failed to reach email provider")
+            raise EmailDeliveryError("Failed to send verification email") from exc
         return
 
     # Default free scaffold mode: log verification link locally.

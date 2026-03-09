@@ -1,5 +1,6 @@
 
 import asyncio
+import logging
 from fastapi import Depends, status, APIRouter, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +26,7 @@ router = APIRouter(
     prefix="/api/v1",
     tags=["Auth"],
 )
+logger = logging.getLogger(__name__)
 
 @router.post("/register", status_code=status.HTTP_201_CREATED, response_model=BaseResponse[UserResponse])
 async def register_user(user: Register, db: AsyncSession = Depends(get_db)):
@@ -156,8 +158,9 @@ async def resend_verification(payload: ResendVerificationRequest, db: AsyncSessi
     )
     try:
         await send_verification_email(user.email, verification_token)
-    except EmailDeliveryError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except EmailDeliveryError:
+        logger.exception("Verification email resend failed")
+        raise HTTPException(status_code=502, detail="Failed to send verification email")
 
     return BaseResponse(
         data={"status": "queued"},
