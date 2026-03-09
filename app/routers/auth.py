@@ -6,7 +6,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from datetime import timedelta, datetime, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.database import get_db
 from app.config import settings
@@ -73,11 +73,13 @@ def _new_access_token(user: User) -> str:
 def _new_refresh_token(user: User) -> tuple[str, datetime]:
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    jti = str(uuid4())
     token = create_access_token(
         {
             "sub": str(user.id),
             "email": user.email,
             "purpose": "refresh",
+            "jti": jti,
         },
         expires_delta=timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
     )
