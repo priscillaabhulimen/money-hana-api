@@ -279,8 +279,8 @@ async def logout(request: Request, response: Response, db: AsyncSession = Depend
             token_row.revoked_at = datetime.now(timezone.utc)
             await db.commit()
 
-    response.delete_cookie("access_token", path="/refresh")
-    response.delete_cookie("refresh_token", path="/refresh")
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/api/v1/refresh")
     return BaseResponse(data={"status": "ok"}, message="Logged out")
 
 
