@@ -134,7 +134,7 @@ async def register_user(user: Register, db: AsyncSession = Depends(get_db)):
         await db.refresh(new_user)
     except IntegrityError:
         await db.rollback()
-        logger.warning("Registration failed due to integrity constraint", exc_info=True)
+        logger.warning("Registration failed due to integrity constraint")
         raise HTTPException(status_code=400, detail="Registration could not be completed")
 
     verification_token = create_access_token(
