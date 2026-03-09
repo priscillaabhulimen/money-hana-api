@@ -44,6 +44,7 @@ def enrich_goal_response(goal: Goal, spend_by_category: dict[str, Decimal]) -> G
     return goal_response
 
 
+@router.get("", response_model=BaseResponse[list[GoalResponse]], include_in_schema=False)
 @router.get("/", response_model=BaseResponse[list[GoalResponse]])
 async def get_goals(
     current_user: User = Depends(get_current_user),
@@ -74,6 +75,7 @@ async def get_goal(
     return BaseResponse(data=enrich_goal_response(goal, spend_by_category))
 
 
+@router.post("", response_model=BaseResponse[GoalResponse], status_code=status.HTTP_201_CREATED, include_in_schema=False)
 @router.post("/", response_model=BaseResponse[GoalResponse], status_code=status.HTTP_201_CREATED)
 async def create_goal(
     goal: GoalCreate,

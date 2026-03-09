@@ -14,6 +14,7 @@ router = APIRouter(
     tags=["Transactions"],
 )
 
+@router.get("", response_model=PaginatedResponse[list[TransactionResponse]], include_in_schema=False)
 @router.get("/", response_model=PaginatedResponse[list[TransactionResponse]])
 async def get_transactions(
     current_user: User = Depends(get_current_user),
@@ -65,6 +66,7 @@ async def get_transaction(
     return BaseResponse(data=TransactionResponse.model_validate(transaction))
 
 
+@router.post("", response_model=BaseResponse[TransactionResponse], status_code=status.HTTP_201_CREATED, include_in_schema=False)
 @router.post("/", response_model=BaseResponse[TransactionResponse], status_code=status.HTTP_201_CREATED)
 async def create_transaction(
     transaction: TransactionCreate,
