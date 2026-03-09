@@ -56,7 +56,7 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str)
         secure=secure_cookie,
         samesite="lax",
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-        path="/api/v1/refresh",
+        path="/api/v1",
     )
 
 
@@ -278,7 +278,7 @@ async def logout(request: Request, response: Response, db: AsyncSession = Depend
             await db.commit()
 
     response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/api/v1/refresh")
+    response.delete_cookie("refresh_token", path="/api/v1")
     return BaseResponse(data={"status": "ok"}, message="Logged out")
 
 
