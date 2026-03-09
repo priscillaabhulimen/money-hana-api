@@ -1,6 +1,7 @@
 import jwt
 import bcrypt
 import hashlib
+import hmac
 
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -19,7 +20,11 @@ def _password_digest(password: str) -> bytes:
 
 
 def hash_token(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+    return hmac.new(
+        SECRET_KEY.encode("utf-8"),
+        token.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(_password_digest(password), bcrypt.gensalt()).decode("utf-8")

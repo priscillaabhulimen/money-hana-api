@@ -80,6 +80,7 @@ The expected tables are:
 - `users`
 - `transactions`
 - `goals`
+- `refresh_tokens`
 
 See `MIGRATION.md` for the migration workflow and recommended move to versioned migrations.
 
