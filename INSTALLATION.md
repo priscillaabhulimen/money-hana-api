@@ -39,6 +39,7 @@ Set your real database values in `.env`:
 
 ```env
 DATABASE_URL=postgresql+asyncpg://<username>:<password>@<host>:<port>/<database-name>
+AUTH_SECRET_KEY=<your-secret-key>
 ALLOWED_ORIGINS=http://localhost:3000
 ```
 
@@ -52,7 +53,9 @@ DEBUG_SQL=true
 
 This repository currently has no committed Alembic migration directory.
 
-Confirm your target database already has:
+The app currently creates schema tables automatically on startup using `Base.metadata.create_all(...)`.
+
+Expected tables:
 
 - `users`
 - `transactions`

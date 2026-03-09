@@ -48,6 +48,7 @@ Set at least the following values in `.env`:
 
 ```env
 DATABASE_URL=postgresql+asyncpg://<username>:<password>@<host>:<port>/<database-name>
+AUTH_SECRET_KEY=<your-secret-key>
 ALLOWED_ORIGINS=http://localhost:3000
 ```
 
@@ -63,13 +64,15 @@ If your password contains reserved URL characters (for example `@`), URL-encode 
 
 This repository does not currently include Alembic migration files.
 
-Before running the API, ensure your PostgreSQL database already contains the expected tables:
+On startup, the app currently auto-creates schema tables using `Base.metadata.create_all(...)`.
+
+The expected tables are:
 
 - `users`
 - `transactions`
 - `goals`
 
-See `MIGRATION.md` for the current migration workflow and recommended next steps.
+See `MIGRATION.md` for the migration workflow and recommended move to versioned migrations.
 
 ## 6. Run the API
 
