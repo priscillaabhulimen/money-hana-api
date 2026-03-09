@@ -50,14 +50,19 @@ Set at least the following values in `.env`:
 DATABASE_URL=postgresql+asyncpg://<username>:<password>@<host>:<port>/<database-name>
 AUTH_SECRET_KEY=<your-secret-key>
 ALLOWED_ORIGINS=http://localhost:3000
-RESEND_API_KEY=<your-resend-api-key>
-EMAIL_FROM=<verified-sender-email>
 ```
 
 Optional value for SQL query logging:
 
 ```env
 DEBUG_SQL=true
+```
+
+If you set `EMAIL_PROVIDER=resend` or `EMAIL_PROVIDER=render`, also configure:
+
+```env
+RESEND_API_KEY=<your-resend-api-key>
+EMAIL_FROM=<verified-sender-email>
 ```
 
 If your password contains reserved URL characters (for example `@`), URL-encode them.

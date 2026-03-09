@@ -1,7 +1,7 @@
 from pydantic import BaseModel, field_validator, Field
 from uuid import UUID
 from datetime import datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from app.schemas.enums import ExpenseCategory
 
 class GoalBase(BaseModel):
@@ -22,7 +22,10 @@ class GoalBase(BaseModel):
     @field_validator("monthly_limit", mode="before")
     @classmethod
     def normalize_amount(cls, v):
-        d = Decimal(str(v))
+        try:
+            d = Decimal(str(v))
+        except (InvalidOperation, ValueError, TypeError):
+            raise ValueError("Invalid monthly limit")
         return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 class GoalCreate(GoalBase):
@@ -38,7 +41,10 @@ class GoalUpdate(BaseModel):
     def normalize_amount(cls, v):
         if v is None:
             return v
-        d = Decimal(str(v))
+        try:
+            d = Decimal(str(v))
+        except (InvalidOperation, ValueError, TypeError):
+            raise ValueError("Invalid monthly limit")
         return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 class GoalResponse(GoalBase):

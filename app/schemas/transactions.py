@@ -1,6 +1,6 @@
 import datetime
 from uuid import UUID
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 
 from pydantic import BaseModel, field_validator, model_validator, Field
 
@@ -37,7 +37,10 @@ class TransactionBase(BaseModel):
     @field_validator("amount", mode="before")
     @classmethod
     def normalize_amount(cls, v):
-        d = Decimal(str(v))
+        try:
+            d = Decimal(str(v))
+        except (InvalidOperation, ValueError, TypeError):
+            raise ValueError("Invalid amount")
         return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     @model_validator(mode="after")
@@ -89,7 +92,10 @@ class TransactionUpdate(BaseModel):
     def normalize_amount(cls, v):
         if v is None:
             return v
-        d = Decimal(str(v))
+        try:
+            d = Decimal(str(v))
+        except (InvalidOperation, ValueError, TypeError):
+            raise ValueError("Invalid amount")
         return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     @field_validator("transaction_type", mode="before")
