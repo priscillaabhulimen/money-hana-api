@@ -7,8 +7,8 @@ from sqlalchemy import select, func
 
 from app.schemas import GoalCreate, GoalResponse, GoalUpdate, BaseResponse, TransactionType
 from app.database import get_db
-from app.models import Goal, Transaction
-from app.utils import TEMP_USER_ID
+from app.models import Goal, Transaction, User
+from app.routers.auth import get_current_user
 
 router = APIRouter(
     prefix="/api/v1/goals",
@@ -45,36 +45,62 @@ def enrich_goal_response(goal: Goal, spend_by_category: dict[str, Decimal]) -> G
 
 
 @router.get("/", response_model=BaseResponse[list[GoalResponse]])
-async def get_goals(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Goal))
+async def get_goals(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Goal).where(Goal.user_id == current_user.id))
     goals = result.scalars().all()
-    spend_by_category = await get_current_spend_all(db, TEMP_USER_ID)
+    spend_by_category = await get_current_spend_all(db, current_user.id)
     return BaseResponse(data=[enrich_goal_response(g, spend_by_category) for g in goals])
 
 
 @router.get("/{goal_id}", response_model=BaseResponse[GoalResponse])
-async def get_goal(goal_id: UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Goal).where(Goal.id == goal_id))
+async def get_goal(
+    goal_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Goal).where(
+            Goal.id == goal_id,
+            Goal.user_id == current_user.id,
+        )
+    )
     goal = result.scalar_one_or_none()
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
-    spend_by_category = await get_current_spend_all(db, TEMP_USER_ID)
+    spend_by_category = await get_current_spend_all(db, current_user.id)
     return BaseResponse(data=enrich_goal_response(goal, spend_by_category))
 
 
 @router.post("/", response_model=BaseResponse[GoalResponse], status_code=status.HTTP_201_CREATED)
-async def create_goal(goal: GoalCreate, db: AsyncSession = Depends(get_db)):
-    new_goal = Goal(**goal.model_dump(), user_id=TEMP_USER_ID)
+async def create_goal(
+    goal: GoalCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    new_goal = Goal(**goal.model_dump(), user_id=current_user.id)
     db.add(new_goal)
     await db.commit()
     await db.refresh(new_goal)
-    spend_by_category = await get_current_spend_all(db, TEMP_USER_ID)
+    spend_by_category = await get_current_spend_all(db, current_user.id)
     return BaseResponse(data=enrich_goal_response(new_goal, spend_by_category))
 
 
 @router.patch("/{goal_id}", response_model=BaseResponse[GoalResponse])
-async def update_goal(goal_id: UUID, goal_update: GoalUpdate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Goal).where(Goal.id == goal_id))
+async def update_goal(
+    goal_id: UUID,
+    goal_update: GoalUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Goal).where(
+            Goal.id == goal_id,
+            Goal.user_id == current_user.id,
+        )
+    )
     goal = result.scalar_one_or_none()
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
@@ -82,13 +108,22 @@ async def update_goal(goal_id: UUID, goal_update: GoalUpdate, db: AsyncSession =
         setattr(goal, field, value)
     await db.commit()
     await db.refresh(goal)
-    spend_by_category = await get_current_spend_all(db, TEMP_USER_ID)
+    spend_by_category = await get_current_spend_all(db, current_user.id)
     return BaseResponse(data=enrich_goal_response(goal, spend_by_category))
 
 
 @router.delete("/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_goal(goal_id: UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Goal).where(Goal.id == goal_id))
+async def delete_goal(
+    goal_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Goal).where(
+            Goal.id == goal_id,
+            Goal.user_id == current_user.id,
+        )
+    )
     goal = result.scalar_one_or_none()
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")

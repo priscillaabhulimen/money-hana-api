@@ -9,12 +9,17 @@ from app.config import settings
 SECRET_KEY = settings.auth_secret_key
 ALGORITHM = settings.auth_algorithm
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.auth_access_token_expire_minutes
+REFRESH_TOKEN_EXPIRE_DAYS = settings.auth_refresh_token_expire_days
 
 
 def _password_digest(password: str) -> bytes:
     # Pre-hash avoids bcrypt's 72-byte input limit while keeping deterministic verification.
     # Use hexdigest to avoid embedded null bytes that could be misinterpreted by some bcrypt implementations.
     return hashlib.sha256(password.encode("utf-8")).hexdigest().encode("ascii")
+
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(_password_digest(password), bcrypt.gensalt()).decode("utf-8")

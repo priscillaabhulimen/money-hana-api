@@ -26,6 +26,10 @@ class Settings(BaseSettings):
         default=30,
         validation_alias="AUTH_ACCESS_TOKEN_EXPIRE_MINUTES",
     )
+    auth_refresh_token_expire_days: int = Field(
+        default=14,
+        validation_alias="AUTH_REFRESH_TOKEN_EXPIRE_DAYS",
+    )
 
     email_provider: Literal["console", "resend", "render"] = Field(
         default="console",

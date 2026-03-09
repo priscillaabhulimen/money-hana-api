@@ -6,8 +6,8 @@ from sqlalchemy import select, func
 
 from app.schemas import TransactionCreate, TransactionResponse, TransactionUpdate, BaseResponse, TransactionType, PaginatedResponse, ExpenseCategory, IncomeCategory
 from app.database import get_db
-from app.models import Transaction
-from app.utils import TEMP_USER_ID
+from app.models import Transaction, User
+from app.routers.auth import get_current_user
 
 router = APIRouter(
     prefix="/api/v1/transactions",
@@ -16,6 +16,7 @@ router = APIRouter(
 
 @router.get("/", response_model=PaginatedResponse[list[TransactionResponse]])
 async def get_transactions(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     limit: int = Query(default=30, ge=1, le=100),
     page: int = Query(default=1, ge=1),
@@ -24,7 +25,7 @@ async def get_transactions(
 ):
     offset = (page - 1) * limit
 
-    filters = []
+    filters = [Transaction.user_id == current_user.id]
     if start_date:
         filters.append(Transaction.date >= start_date)
     if end_date:
@@ -47,8 +48,17 @@ async def get_transactions(
 
 
 @router.get("/{transaction_id}", response_model=BaseResponse[TransactionResponse])
-async def get_transaction(transaction_id: UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Transaction).where(Transaction.id == transaction_id))
+async def get_transaction(
+    transaction_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Transaction).where(
+            Transaction.id == transaction_id,
+            Transaction.user_id == current_user.id,
+        )
+    )
     transaction = result.scalar_one_or_none()
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -56,8 +66,12 @@ async def get_transaction(transaction_id: UUID, db: AsyncSession = Depends(get_d
 
 
 @router.post("/", response_model=BaseResponse[TransactionResponse], status_code=status.HTTP_201_CREATED)
-async def create_transaction(transaction: TransactionCreate, db: AsyncSession = Depends(get_db)):
-    new_transaction = Transaction(**transaction.model_dump(), user_id=TEMP_USER_ID)
+async def create_transaction(
+    transaction: TransactionCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    new_transaction = Transaction(**transaction.model_dump(), user_id=current_user.id)
     db.add(new_transaction)
     await db.commit()
     await db.refresh(new_transaction)
@@ -65,8 +79,18 @@ async def create_transaction(transaction: TransactionCreate, db: AsyncSession = 
 
 
 @router.patch("/{transaction_id}", response_model=BaseResponse[TransactionResponse])
-async def update_transaction(transaction_id: UUID, transaction_update: TransactionUpdate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Transaction).where(Transaction.id == transaction_id))
+async def update_transaction(
+    transaction_id: UUID,
+    transaction_update: TransactionUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Transaction).where(
+            Transaction.id == transaction_id,
+            Transaction.user_id == current_user.id,
+        )
+    )
     transaction = result.scalar_one_or_none()
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -102,8 +126,17 @@ async def update_transaction(transaction_id: UUID, transaction_update: Transacti
 
 
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_transaction(transaction_id: UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Transaction).where(Transaction.id == transaction_id))
+async def delete_transaction(
+    transaction_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Transaction).where(
+            Transaction.id == transaction_id,
+            Transaction.user_id == current_user.id,
+        )
+    )
     transaction = result.scalar_one_or_none()
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
