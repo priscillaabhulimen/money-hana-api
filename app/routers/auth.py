@@ -17,7 +17,7 @@ from app.schemas import (
     VerifyEmailRequest,
     ResendVerificationRequest,
 )
-from app.utils import hash, verify, create_access_token, decode_access_token
+from app.utils import hash_password, verify, create_access_token, decode_access_token
 from app.utils.email import send_verification_email, EmailDeliveryError
 
 router = APIRouter(
@@ -27,7 +27,7 @@ router = APIRouter(
 
 @router.post("/register", status_code=status.HTTP_201_CREATED, response_model=BaseResponse[UserResponse])
 async def register_user(user: Register, db: AsyncSession = Depends(get_db)):
-    hashed_password = hash(user.password)
+    hashed_password = hash_password(user.password)
     new_user = User(
         first_name=user.first_name,
         last_name=user.last_name,
@@ -140,8 +140,8 @@ async def resend_verification(payload: ResendVerificationRequest, db: AsyncSessi
 
     if user.is_verified:
         return BaseResponse(
-            data={"status": "already_verified"},
-            message="Email is already verified.",
+            data={"status": "queued"},
+            message="If this email exists, a verification link has been sent.",
         )
 
     verification_token = create_access_token(

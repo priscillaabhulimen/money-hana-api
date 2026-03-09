@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     )
 
     email_provider: Literal["console", "resend"] = Field(
-        default="console",
+        default="resend",
         validation_alias="EMAIL_PROVIDER",
     )
     email_from: str | None = Field(default=None, validation_alias="EMAIL_FROM")
