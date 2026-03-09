@@ -1,7 +1,3 @@
-
-from uuid import UUID
-
-
 ERROR_MESSAGES = {
     "missing": "This field is required",
     "value_error": "Invalid value provided",
