@@ -50,6 +50,8 @@ Set at least the following values in `.env`:
 DATABASE_URL=postgresql+asyncpg://<username>:<password>@<host>:<port>/<database-name>
 AUTH_SECRET_KEY=<your-secret-key>
 ALLOWED_ORIGINS=http://localhost:3000
+RESEND_API_KEY=<your-resend-api-key>
+EMAIL_FROM=<verified-sender-email>
 ```
 
 Optional value for SQL query logging:
