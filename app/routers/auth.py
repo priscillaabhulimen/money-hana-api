@@ -1,4 +1,5 @@
 
+import asyncio
 from fastapi import Depends, status, APIRouter, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,7 +28,7 @@ router = APIRouter(
 
 @router.post("/register", status_code=status.HTTP_201_CREATED, response_model=BaseResponse[UserResponse])
 async def register_user(user: Register, db: AsyncSession = Depends(get_db)):
-    hashed_password = hash_password(user.password)
+    hashed_password = await asyncio.to_thread(hash_password, user.password)
     new_user = User(
         first_name=user.first_name,
         last_name=user.last_name,
@@ -74,7 +75,8 @@ async def login(data: Login, db: AsyncSession = Depends(get_db)):
         select(User).where(User.email == data.email)
     )
     user = result.scalars().first()
-    if not user or not verify(data.password, user.password_hash):
+    password_ok = user and await asyncio.to_thread(verify, data.password, user.password_hash)
+    if not user or not password_ok:
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not user.is_verified:
         raise HTTPException(status_code=403, detail="Email not verified")

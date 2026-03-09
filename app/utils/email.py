@@ -25,7 +25,7 @@ async def send_verification_email(email: str, token: str) -> None:
         else email
     )
 
-    if provider == "resend":
+    if provider in {"resend", "render"}:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(

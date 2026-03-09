@@ -27,8 +27,8 @@ class Settings(BaseSettings):
         validation_alias="AUTH_ACCESS_TOKEN_EXPIRE_MINUTES",
     )
 
-    email_provider: Literal["console", "resend"] = Field(
-        default="resend",
+    email_provider: Literal["console", "resend", "render"] = Field(
+        default="console",
         validation_alias="EMAIL_PROVIDER",
     )
     email_from: str | None = Field(default=None, validation_alias="EMAIL_FROM")
@@ -46,11 +46,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_email_provider_config(self) -> "Settings":
-        if self.email_provider == "resend":
+        if self.email_provider in {"resend", "render"}:
             if not self.resend_api_key:
-                raise ValueError("RESEND_API_KEY is required when EMAIL_PROVIDER=resend")
+                raise ValueError("RESEND_API_KEY is required when EMAIL_PROVIDER is resend or render")
             if not self.email_from:
-                raise ValueError("EMAIL_FROM is required when EMAIL_PROVIDER=resend")
+                raise ValueError("EMAIL_FROM is required when EMAIL_PROVIDER is resend or render")
         if self.email_test_recipient and self.app_env != "development":
             raise ValueError("EMAIL_TEST_RECIPIENT is allowed only when APP_ENV=development")
         return self
