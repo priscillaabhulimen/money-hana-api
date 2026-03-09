@@ -15,10 +15,23 @@ from app.routers import auth, transactions, goals
 
 logger = logging.getLogger(__name__)
 
+
+async def _assert_auth_tables_ready() -> None:
+    async with engine.connect() as conn:
+        result = await conn.execute(text("SELECT to_regclass('refresh_tokens')"))
+        table_name = result.scalar_one_or_none()
+
+    if table_name is None:
+        raise RuntimeError(
+            "Missing required table 'refresh_tokens'. Run database migrations/DDL before starting the API."
+        )
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if settings.app_env == "development":
         await init_models()
+    else:
+        await _assert_auth_tables_ready()
     yield
     await engine.dispose()
 

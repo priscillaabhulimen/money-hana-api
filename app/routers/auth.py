@@ -1,21 +1,21 @@
 
 import asyncio
 import logging
-from fastapi import Depends, status, APIRouter, HTTPException
-from sqlalchemy import select
+from fastapi import Depends, status, APIRouter, HTTPException, Response, Request
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from datetime import timedelta, datetime, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.database import get_db
-from app.models import User
+from app.config import settings
+from app.models import User, RefreshToken
 from app.schemas import (
     BaseResponse,
     Register,
     Login,
     UserResponse,
-    AuthResponse,
     VerifyEmailRequest,
     ResendVerificationRequest,
 )
@@ -25,6 +25,8 @@ from app.utils import (
     create_access_token,
     decode_access_token,
     DUMMY_PASSWORD_HASH,
+    hash_token,
+    REFRESH_TOKEN_EXPIRE_DAYS,
 )
 from app.utils.email import send_verification_email, EmailDeliveryError
 
@@ -33,6 +35,95 @@ router = APIRouter(
     tags=["Auth"],
 )
 logger = logging.getLogger(__name__)
+
+
+def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+    secure_cookie = settings.app_env != "development"
+
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=secure_cookie,
+        samesite="lax",
+        max_age=settings.auth_access_token_expire_minutes * 60,
+        path="/",
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=secure_cookie,
+        samesite="lax",
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        path="/api/v1",
+    )
+
+
+def _new_access_token(user: User) -> str:
+    return create_access_token(
+        {
+            "sub": str(user.id),
+            "email": user.email,
+            "purpose": "access",
+        }
+    )
+
+
+def _new_refresh_token(user: User) -> tuple[str, datetime]:
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    jti = str(uuid4())
+    token = create_access_token(
+        {
+            "sub": str(user.id),
+            "email": user.email,
+            "purpose": "refresh",
+            "jti": jti,
+        },
+        expires_delta=timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+    )
+    return token, expires_at
+
+
+async def _prune_refresh_tokens(db: AsyncSession, now: datetime) -> None:
+    await db.execute(
+        delete(RefreshToken).where(
+            (RefreshToken.expires_at <= now) | (RefreshToken.revoked_at.is_not(None))
+        )
+    )
+
+
+async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)) -> User:
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        payload = decode_access_token(token)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Invalid or expired token") from exc
+
+    if payload.get("purpose") not in {None, "access"}:
+        raise HTTPException(status_code=401, detail="Invalid token type")
+
+    subject = payload.get("sub")
+    if not subject:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+
+    try:
+        user_id = UUID(subject)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Invalid token payload") from exc
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalars().one_or_none()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    if not user.is_verified:
+        raise HTTPException(status_code=403, detail="Email not verified")
+
+    return user
 
 @router.post("/register", status_code=status.HTTP_201_CREATED, response_model=BaseResponse[UserResponse])
 async def register_user(user: Register, db: AsyncSession = Depends(get_db)):
@@ -51,7 +142,8 @@ async def register_user(user: Register, db: AsyncSession = Depends(get_db)):
         await db.refresh(new_user)
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(status_code=409, detail="Email already registered")
+        logger.warning("Registration failed due to integrity constraint")
+        raise HTTPException(status_code=400, detail="Registration could not be completed")
 
     verification_token = create_access_token(
         {
@@ -63,7 +155,7 @@ async def register_user(user: Register, db: AsyncSession = Depends(get_db)):
     )
     try:
         await send_verification_email(new_user.email, verification_token)
-    except EmailDeliveryError as exc:
+    except EmailDeliveryError:
         return BaseResponse(
             data=UserResponse.model_validate(new_user),
             message=(
@@ -77,8 +169,8 @@ async def register_user(user: Register, db: AsyncSession = Depends(get_db)):
         message="Registration successful. Please verify your email.",
     )
 
-@router.post("/login", response_model=BaseResponse[AuthResponse])
-async def login(data: Login, db: AsyncSession = Depends(get_db)):
+@router.post("/login", response_model=BaseResponse[UserResponse])
+async def login(data: Login, response: Response, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(User).where(User.email == data.email)
     )
@@ -90,18 +182,106 @@ async def login(data: Login, db: AsyncSession = Depends(get_db)):
     if not user.is_verified:
         raise HTTPException(status_code=403, detail="Email not verified")
 
-    access_token = create_access_token({"sub": str(user.id), "email": user.email})
-    response_data = AuthResponse(
-        id=user.id,
-        first_name=user.first_name,
-        last_name=user.last_name,
-        email=user.email,
-        user_type=user.user_type,
-        is_verified=user.is_verified,
-        created_at=user.created_at,
-        access_token=access_token,
+    access_token = _new_access_token(user)
+    refresh_token, refresh_expires_at = _new_refresh_token(user)
+    db.add(
+        RefreshToken(
+            user_id=user.id,
+            token_hash=hash_token(refresh_token),
+            expires_at=refresh_expires_at,
+        )
     )
-    return BaseResponse(data=response_data)
+    await _prune_refresh_tokens(db, datetime.now(timezone.utc))
+    await db.commit()
+    _set_auth_cookies(response, access_token, refresh_token)
+
+    return BaseResponse(data=UserResponse.model_validate(user))
+
+
+@router.post("/refresh", response_model=BaseResponse[UserResponse])
+async def refresh_session(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    refresh_cookie = request.cookies.get("refresh_token")
+    if not refresh_cookie:
+        raise HTTPException(status_code=401, detail="Refresh token missing")
+
+    try:
+        payload = decode_access_token(refresh_cookie)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token") from exc
+
+    if payload.get("purpose") != "refresh":
+        raise HTTPException(status_code=401, detail="Invalid token type")
+
+    subject = payload.get("sub")
+    if not subject:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+
+    try:
+        user_id = UUID(subject)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Invalid token payload") from exc
+
+    token_hash = hash_token(refresh_cookie)
+    now = datetime.now(timezone.utc)
+
+    revoke_result = await db.execute(
+        update(RefreshToken)
+        .where(
+            RefreshToken.token_hash == token_hash,
+            RefreshToken.user_id == user_id,
+            RefreshToken.revoked_at.is_(None),
+            RefreshToken.expires_at > now,
+        )
+        .values(revoked_at=now)
+        .returning(RefreshToken.user_id)
+    )
+    rotated_user_id = revoke_result.scalar_one_or_none()
+    if not rotated_user_id:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    user = user_result.scalars().one_or_none()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    if not user.is_verified:
+        raise HTTPException(status_code=403, detail="Email not verified")
+
+    new_refresh_token, new_refresh_expires_at = _new_refresh_token(user)
+    db.add(
+        RefreshToken(
+            user_id=user.id,
+            token_hash=hash_token(new_refresh_token),
+            expires_at=new_refresh_expires_at,
+        )
+    )
+    await _prune_refresh_tokens(db, now)
+
+    access_token = _new_access_token(user)
+    await db.commit()
+    _set_auth_cookies(response, access_token, new_refresh_token)
+
+    return BaseResponse(data=UserResponse.model_validate(user), message="Session refreshed")
+
+
+@router.post("/logout", response_model=BaseResponse[dict[str, str]])
+async def logout(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    refresh_cookie = request.cookies.get("refresh_token")
+    if refresh_cookie:
+        token_hash = hash_token(refresh_cookie)
+        token_result = await db.execute(
+            select(RefreshToken).where(
+                RefreshToken.token_hash == token_hash,
+                RefreshToken.revoked_at.is_(None),
+            )
+        )
+        token_row = token_result.scalars().one_or_none()
+        if token_row:
+            token_row.revoked_at = datetime.now(timezone.utc)
+            await db.commit()
+
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/api/v1")
+    return BaseResponse(data={"status": "ok"}, message="Logged out")
 
 
 @router.post("/verify-email", response_model=BaseResponse[dict[str, str]])

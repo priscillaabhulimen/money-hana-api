@@ -62,6 +62,7 @@ Expected tables:
 - `users`
 - `transactions`
 - `goals`
+- `refresh_tokens`
 
 Migration setup details are in `MIGRATION.md`.
 
