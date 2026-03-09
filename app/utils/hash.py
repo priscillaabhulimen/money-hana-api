@@ -13,7 +13,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = settings.auth_access_token_expire_minutes
 
 def _password_digest(password: str) -> bytes:
     # Pre-hash avoids bcrypt's 72-byte input limit while keeping deterministic verification.
-    return hashlib.sha256(password.encode("utf-8")).digest()
+    # Use hexdigest to avoid embedded null bytes that could be misinterpreted by some bcrypt implementations.
+    return hashlib.sha256(password.encode("utf-8")).hexdigest().encode("ascii")
 
 def hash(password: str) -> str:
     return bcrypt.hashpw(_password_digest(password), bcrypt.gensalt()).decode("utf-8")
