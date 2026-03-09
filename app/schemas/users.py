@@ -22,6 +22,11 @@ class UserBase(BaseModel):
 class Register(UserBase):
     password: str
 
+    @field_validator("user_type", mode="before")
+    @classmethod
+    def enforce_regular_user_type(cls, v):
+        # Ignore any user-supplied value and always register as a regular user
+        return UserType.regular
 class Login(BaseModel):
     model_config = {"extra": "forbid"}
     
