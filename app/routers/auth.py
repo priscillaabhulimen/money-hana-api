@@ -125,6 +125,10 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
 
     return user
 
+@router.get("/me", response_model=BaseResponse[UserResponse])
+async def read_current_user(current_user: User = Depends(get_current_user)):
+    return BaseResponse(data=UserResponse.model_validate(current_user))
+
 @router.post("/register", status_code=status.HTTP_201_CREATED, response_model=BaseResponse[UserResponse])
 async def register_user(user: Register, db: AsyncSession = Depends(get_db)):
     hashed_password = await asyncio.to_thread(hash_password, user.password)
