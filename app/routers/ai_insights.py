@@ -35,6 +35,9 @@ async def fetch_fresh_insights(
     )
     transactions = tx_result.scalars().all()
 
+    if not transactions:
+        return []
+
     # Fetch goals
     goal_result = await db.execute(
         select(Goal).where(Goal.user_id == user.id)
