@@ -11,7 +11,7 @@ from app.database import engine, get_db, init_models
 from app.config import settings
 from app.schemas.base import ErrorResponse
 from app.utils import ERROR_MESSAGES, custom_openapi
-from app.routers import auth, transactions, goals
+from app.routers import ai_insights, auth, transactions, goals
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="MoneyHana API", lifespan=lifespan)
-
 
 origins = settings.allowed_origins_list
 
@@ -76,12 +75,12 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         content=ErrorResponse(message=exc.detail).model_dump()
     )
 
-
 app.openapi = lambda: custom_openapi(app)
 
 app.include_router(auth.router)
 app.include_router(transactions.router)
 app.include_router(goals.router)
+app.include_router(ai_insights.router)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────

@@ -11,3 +11,4 @@ from app.schemas.users import (
     VerifyEmailRequest,
     ResendVerificationRequest,
 )
+from app.schemas.ai_insights import AIInsightResponse, AIInsightsRequest
