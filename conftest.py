@@ -1,12 +1,12 @@
-import pytest
 import pytest_asyncio
+import sqlalchemy as sa
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.pool import NullPool
 from app.main import app as fastapi_app
 from app.database import get_db
 from app.base import Base
 import app.models  # noqa: F401
-import sqlalchemy as sa
 
 TEST_DATABASE_URL = "postgresql+asyncpg://postgres:%40ckl3sJ3ns3n@127.0.0.1:5430/moneyhana_test"
 
@@ -19,18 +19,20 @@ async def override_get_db():
         yield session
 
 
-@pytest_asyncio.fixture(scope="session", autouse=True)
-async def setup_database():
-    async with test_engine.begin() as conn:
+@pytest_asyncio.fixture(scope="session")
+async def test_engine():
+    engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
-    yield
-    async with test_engine.begin() as conn:
+    yield engine
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
 
 
 @pytest_asyncio.fixture(autouse=True)
-async def clean_tables():
+async def clean_tables(test_engine):
     yield
     async with test_engine.begin() as conn:
         for table in reversed(Base.metadata.sorted_tables):
@@ -40,7 +42,13 @@ async def clean_tables():
 
 
 @pytest_asyncio.fixture
-async def client():
+async def client(test_engine):
+    TestSessionLocal = async_sessionmaker(test_engine, expire_on_commit=False)
+
+    async def override_get_db():
+        async with TestSessionLocal() as session:
+            yield session
+
     fastapi_app.dependency_overrides[get_db] = override_get_db
     async with AsyncClient(
         transport=ASGITransport(app=fastapi_app),
@@ -48,7 +56,6 @@ async def client():
     ) as ac:
         yield ac
     fastapi_app.dependency_overrides.clear()
-
 
 @pytest_asyncio.fixture
 async def registered_user(client: AsyncClient):
