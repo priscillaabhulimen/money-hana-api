@@ -22,6 +22,21 @@ logger = logging.getLogger(__name__)
 
 INSIGHT_TTL_DAYS = 7
 
+CATEGORY_LABELS = {
+    "groceries": "Groceries",
+    "dining": "Dining",
+    "transport": "Transport",
+    "entertainment": "Entertainment",
+    "utilities_bills": "Utilities & Bills",
+    "education": "Education",
+    "subscriptions": "Subscriptions",
+    "salary_wages": "Salary & Wages",
+    "returns": "Returns",
+    "gift": "Gift",
+    "other": "Other",
+}
+
+
 async def fetch_fresh_insights(
     user: User,
     db: AsyncSession,
@@ -48,7 +63,7 @@ async def fetch_fresh_insights(
         {
             "date": str(t.date),
             "type": t.transaction_type,
-            "category": t.category,
+            "category": CATEGORY_LABELS.get(t.category, t.category),
             "amount": float(t.amount),
             "note": t.note,
         }
@@ -57,7 +72,7 @@ async def fetch_fresh_insights(
 
     goal_context = [
         {
-            "category": g.category,
+            "category": CATEGORY_LABELS.get(g.category, g.category),
             "monthly_limit": float(g.monthly_limit),
         }
         for g in goals
@@ -68,6 +83,8 @@ async def fetch_fresh_insights(
 Each insight must have:
 - "type": one of "flag", "pattern", or "goal_warning"
 - "message": a concise, specific, actionable insight (1-2 sentences, no emojis)
+
+Use natural category names exactly as provided. Keep each message under 2 sentences and concise.
 
 Use exactly one of each type, defined as follows:
 
@@ -110,9 +127,6 @@ Respond ONLY with a valid JSON array. No preamble, no markdown, no explanation."
         if item.get("type") not in valid_types or not item.get("message"):
             raise HTTPException(status_code=502, detail="AI service returned invalid insight types")
 
-    # Delete old insights for this user
-    await db.execute(delete(AIInsight).where(AIInsight.user_id == user.id))
-
     # Store new insights
     new_insights = [
         AIInsight(
@@ -128,6 +142,19 @@ Respond ONLY with a valid JSON array. No preamble, no markdown, no explanation."
         await db.refresh(insight)
 
     return new_insights
+
+@router.get("/ai-insights/history", response_model=BaseResponse[list[AIInsightResponse]])
+async def get_ai_insights_history(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(AIInsight)
+        .where(AIInsight.user_id == current_user.id)
+        .order_by(AIInsight.created_at.desc())
+    )
+    insights = result.scalars().all()
+    return BaseResponse(data=insights)
 
 
 @router.post("/ai-insights", response_model=BaseResponse[list[AIInsightResponse]])
