@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     resend_api_key: str | None = Field(default=None, validation_alias="RESEND_API_KEY")
     email_test_recipient: str | None = Field(default=None, validation_alias="EMAIL_TEST_RECIPIENT")
 
+    groq_api_key: str = Field(validation_alias="GROQ_API_KEY")
+    insight_ttl_days: int = Field(default=7, validation_alias="INSIGHT_TTL_DAYS")
+
     @property
     def allowed_origins_list(self) -> list[str]:
         origins = [origin.strip() for origin in self.allowed_origins.split(",") if origin.strip()]
@@ -57,6 +60,10 @@ class Settings(BaseSettings):
                 raise ValueError("EMAIL_FROM is required when EMAIL_PROVIDER is resend or render")
         if self.email_test_recipient and self.app_env != "development":
             raise ValueError("EMAIL_TEST_RECIPIENT is allowed only when APP_ENV=development")
+        if not self.groq_api_key:
+            raise ValueError("GROQ_API_KEY is required")
+        if not self.insight_ttl_days:
+            raise ValueError("INSIGHT_TTL_DAYS is required")
         return self
 
 

@@ -11,7 +11,14 @@ from app.database import engine, get_db, init_models
 from app.config import settings
 from app.schemas.base import ErrorResponse
 from app.utils import ERROR_MESSAGES, custom_openapi
-from app.routers import auth, transactions, goals
+from app.routers import ai_insights, auth, transactions, goals
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from app.database import AsyncSessionLocal
+from app.utils.cleanup import cleanup_old_insights
+
+scheduler = AsyncIOScheduler()
 
 logger = logging.getLogger(__name__)
 
@@ -28,16 +35,30 @@ async def _assert_auth_tables_ready() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    async def run_cleanup():
+        async with AsyncSessionLocal() as db:
+            await cleanup_old_insights(db)
+
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(
+        run_cleanup,
+        trigger=CronTrigger(hour=2, minute=0),
+        id="cleanup_old_insights",
+        replace_existing=True,
+    )
+    scheduler.start()
+
     if settings.app_env == "development":
         await init_models()
     else:
         await _assert_auth_tables_ready()
+
     yield
+
+    scheduler.shutdown()
     await engine.dispose()
 
-
 app = FastAPI(title="MoneyHana API", lifespan=lifespan)
-
 
 origins = settings.allowed_origins_list
 
@@ -76,12 +97,12 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         content=ErrorResponse(message=exc.detail).model_dump()
     )
 
-
 app.openapi = lambda: custom_openapi(app)
 
 app.include_router(auth.router)
 app.include_router(transactions.router)
 app.include_router(goals.router)
+app.include_router(ai_insights.router)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────

@@ -17,3 +17,5 @@ async def init_models() -> None:
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with async_session_maker() as session:
         yield session
+
+AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
