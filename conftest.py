@@ -96,7 +96,56 @@ async def auth_client(client: AsyncClient, verified_user):
 
 
 @pytest_asyncio.fixture
-async def other_user_transaction(client: AsyncClient):
+async def other_user_transaction(client: AsyncClient, auth_client: AsyncClient, test_engine):
+    # Register other user
+    payload = {
+        "first_name": "Other",
+        "last_name": "User",
+        "email": "other@example.com",
+        "password": "Password1",
+        "user_type": "regular",
+    }
+    await client.post("/api/v1/register", json=payload)
+
+    # Verify other user
+    async with async_sessionmaker(test_engine, expire_on_commit=False)() as db:
+        from sqlalchemy import update
+        from app.models import User
+        await db.execute(
+            update(User)
+            .where(User.email == "other@example.com")
+            .values(is_verified=True)
+        )
+        await db.commit()
+
+    # Create a separate client for the other user so auth_client is not affected
+    TestSession = async_sessionmaker(test_engine, expire_on_commit=False)
+
+    async def override_get_db():
+        async with TestSession() as session:
+            yield session
+
+    fastapi_app.dependency_overrides[get_db] = override_get_db
+    async with AsyncClient(
+        transport=ASGITransport(app=fastapi_app),
+        base_url="http://test",
+    ) as other_client:
+        login_res = await other_client.post("/api/v1/login", json={
+            "email": "other@example.com",
+            "password": "Password1",
+        })
+        assert login_res.status_code == 200
+
+        tx_res = await other_client.post("/api/v1/transactions", json={
+            "transaction_type": "expense",
+            "amount": "50.00",
+            "category": "dining",
+            "date": "2026-03-01",
+            "note": "Other user transaction",
+        })
+        assert tx_res.status_code == 201
+
+    return tx_res.json()["data"]["id"]
     # Register and verify a second user
     payload = {
         "first_name": "Other",
