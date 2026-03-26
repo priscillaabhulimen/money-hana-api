@@ -20,7 +20,7 @@ router = APIRouter(
 
 logger = logging.getLogger(__name__)
 
-INSIGHT_TTL_DAYS = 7
+INSIGHT_TTL_DAYS = settings.insight_ttl_days
 
 CATEGORY_LABELS = {
     "groceries": "Groceries",
