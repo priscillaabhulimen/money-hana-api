@@ -10,6 +10,6 @@ from app.utils.hash import (
 )
 from app.utils.constants import ERROR_MESSAGES
 from app.utils.openapi import custom_openapi
-from app.utils.email import send_verification_email
 from app.utils.email_templates import verification_email
 from app.utils.subscription_dates import calculate_next_due_date, advance_due_date
+from app.utils.email import send_email, send_verification_email, EmailDeliveryError

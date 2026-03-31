@@ -15,6 +15,45 @@ class EmailDeliveryError(Exception):
 def build_verification_url(token: str) -> str:
     return f"{settings.frontend_verify_url}?{urlencode({'token': token})}"
 
+async def send_email(to: str, subject: str, html: str) -> None:
+    provider = settings.email_provider
+    recipient = (
+        settings.email_test_recipient
+        if settings.app_env == "development" and settings.email_test_recipient
+        else to
+    )
+
+    if provider in {"resend", "render"}:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    "https://api.resend.com/emails",
+                    headers={
+                        "Authorization": f"Bearer {settings.resend_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "from": settings.email_from,
+                        "to": [recipient],
+                        "subject": subject,
+                        "html": html,
+                    },
+                )
+                response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text.strip()
+            logger.error(
+                "Email provider rejected request: status=%s detail=%s",
+                exc.response.status_code,
+                detail,
+            )
+            raise EmailDeliveryError("Failed to send email") from exc
+        except httpx.HTTPError as exc:
+            logger.exception("Failed to reach email provider")
+            raise EmailDeliveryError("Failed to send email") from exc
+        return
+
+    logger.info("Email to %s — subject: %s", to, subject)
 
 async def send_verification_email(email: str, token: str) -> None:
     provider = settings.email_provider
