@@ -1,1 +1,1 @@
-from app.routers import auth, goals, transactions, ai_insights
+from app.routers import auth, goals, transactions, ai_insights, subscriptions, notifications
