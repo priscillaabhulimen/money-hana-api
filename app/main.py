@@ -11,7 +11,7 @@ from app.database import engine, get_db, init_models
 from app.config import settings
 from app.schemas.base import ErrorResponse
 from app.utils import ERROR_MESSAGES, custom_openapi
-from app.routers import ai_insights, auth, transactions, goals
+from app.routers import ai_insights, auth, subscriptions, transactions, goals
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -103,6 +103,7 @@ app.include_router(auth.router)
 app.include_router(transactions.router)
 app.include_router(goals.router)
 app.include_router(ai_insights.router)
+app.include_router(subscriptions.router)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
