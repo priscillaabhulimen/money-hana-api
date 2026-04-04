@@ -6,10 +6,6 @@ from typing import Literal
 from app.schemas.enums import ExpenseCategory
 
 
-VALID_BILLING_TYPES = {"fixed_date", "periodic"}
-VALID_FREQUENCIES = {"weekly", "monthly", "yearly"}
-
-
 class SubscriptionBase(BaseModel):
     model_config = {"extra": "forbid"}
 
