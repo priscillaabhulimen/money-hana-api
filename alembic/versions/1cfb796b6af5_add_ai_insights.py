@@ -30,7 +30,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.drop_index(op.f('ix_refresh_tokens_token_hash'), table_name='refresh_tokens')
+    op.drop_index(op.f('ix_refresh_tokens_token_hash'), table_name='refresh_tokens', if_exists=True)
     op.create_unique_constraint(None, 'refresh_tokens', ['token_hash'])
     # ### end Alembic commands ###
 
