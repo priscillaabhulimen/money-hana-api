@@ -72,6 +72,24 @@ class SubscriptionUpdate(BaseModel):
     trial_ends_at: date | None = None
     is_active: bool | None = None
 
+    @field_validator("billing_type")
+    @classmethod
+    def validate_billing_type(cls, v):
+        if v is None:
+            return v
+        if v not in ("fixed_date", "periodic"):
+            raise ValueError("billing_type must be 'fixed_date' or 'periodic'")
+        return v
+
+    @field_validator("frequency")
+    @classmethod
+    def validate_frequency(cls, v):
+        if v is None:
+            return v
+        if v not in ("weekly", "monthly", "yearly"):
+            raise ValueError("frequency must be 'weekly', 'monthly', or 'yearly'")
+        return v
+
     @field_validator("category")
     @classmethod
     def validate_category(cls, v):

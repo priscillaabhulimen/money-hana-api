@@ -101,13 +101,19 @@ async def update_subscription(
     # Recalculate next_due_date if billing fields changed
     billing_fields = {"billing_type", "frequency", "anchor_day", "anchor_month"}
     if billing_fields & update_data.keys():
-        subscription.next_due_date = calculate_next_due_date(
-            billing_type=subscription.billing_type,
-            frequency=subscription.frequency,
-            anchor_day=subscription.anchor_day,
-            anchor_month=subscription.anchor_month,
-            from_date=date.today(),
-        )
+        try:
+            subscription.next_due_date = calculate_next_due_date(
+                billing_type=subscription.billing_type,
+                frequency=subscription.frequency,
+                anchor_day=subscription.anchor_day,
+                anchor_month=subscription.anchor_month,
+                from_date=date.today(),
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=422,
+                detail=str(e),
+            )
 
     await db.commit()
     await db.refresh(subscription)

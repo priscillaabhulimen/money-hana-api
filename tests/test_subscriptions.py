@@ -392,6 +392,59 @@ async def test_update_subscription_invalid_category(auth_client: AsyncClient):
     assert res.status_code == 422
 
 
+async def test_update_subscription_cannot_null_billing_type(auth_client: AsyncClient):
+    """Cannot set billing_type to null in update."""
+    create_res = await auth_client.post("/api/v1/subscriptions/", json={
+        "name": "To Update",
+        "category": "entertainment",
+        "amount": "10.00",
+        "billing_type": "periodic",
+        "frequency": "monthly",
+    })
+    sub_id = create_res.json()["data"]["id"]
+    
+    res = await auth_client.patch(f"/api/v1/subscriptions/{sub_id}", json={
+        "billing_type": None
+    })
+    assert res.status_code == 422
+
+
+async def test_update_subscription_cannot_null_frequency(auth_client: AsyncClient):
+    """Cannot set frequency to null in update."""
+    create_res = await auth_client.post("/api/v1/subscriptions/", json={
+        "name": "To Update",
+        "category": "entertainment",
+        "amount": "10.00",
+        "billing_type": "periodic",
+        "frequency": "monthly",
+    })
+    sub_id = create_res.json()["data"]["id"]
+    
+    res = await auth_client.patch(f"/api/v1/subscriptions/{sub_id}", json={
+        "frequency": None
+    })
+    assert res.status_code == 422
+
+
+async def test_update_subscription_invalid_billing_combination(auth_client: AsyncClient):
+    """Update that creates invalid billing combination returns 422."""
+    create_res = await auth_client.post("/api/v1/subscriptions/", json={
+        "name": "Test",
+        "category": "entertainment",
+        "amount": "10.00",
+        "billing_type": "fixed_date",
+        "frequency": "monthly",
+        "anchor_day": 15,
+    })
+    sub_id = create_res.json()["data"]["id"]
+    
+    # Try to change to yearly without providing anchor_month
+    res = await auth_client.patch(f"/api/v1/subscriptions/{sub_id}", json={
+        "frequency": "yearly"
+    })
+    assert res.status_code == 422
+
+
 # ── Delete (DELETE /subscriptions/{id}) ──────────────────────────────────────
 
 
