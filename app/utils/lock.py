@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, delete, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
@@ -49,7 +49,7 @@ class DistributedLock:
         # First, clean up expired locks
         await self._cleanup_expired()
         
-        expires_at = datetime.utcnow() + timedelta(seconds=self.ttl_seconds)
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=self.ttl_seconds)
         
         try:
             # Try to insert a new lock

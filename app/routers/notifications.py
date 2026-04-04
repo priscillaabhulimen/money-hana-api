@@ -36,6 +36,7 @@ async def get_notifications(
 
 
 @router.post("/{subscription_id}/confirm", response_model=BaseResponse[SubscriptionResponse])
+@router.post("/{subscription_id}/confirm/", response_model=BaseResponse[SubscriptionResponse])
 async def confirm_payment(
     subscription_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -79,6 +80,7 @@ async def confirm_payment(
 
 
 @router.post("/{subscription_id}/dismiss", response_model=BaseResponse[SubscriptionResponse])
+@router.post("/{subscription_id}/dismiss/", response_model=BaseResponse[SubscriptionResponse])
 async def dismiss_payment(
     subscription_id: UUID,
     db: AsyncSession = Depends(get_db),
