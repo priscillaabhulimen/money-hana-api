@@ -195,24 +195,24 @@ def digest_email(
     def subscription_row(sub: dict) -> str:
         return f"""
         <tr>
-          <td style="padding:10px 0;border-bottom:1px solid #1f2937;">
-            <p style="margin:0;font-size:14px;font-weight:600;color:#f9fafb;">{sub['name']}</p>
-            <p style="margin:4px 0 0 0;font-size:12px;color:#9ca3af;">{sub['category']} · Due {sub['due_date']}</p>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;">
+            <p style="margin:0;font-size:14px;font-weight:600;color:#111827;">{sub['name']}</p>
+            <p style="margin:4px 0 0 0;font-size:12px;color:#6b7280;">{sub['category']} · Due {sub['due_date']}</p>
           </td>
-          <td style="padding:10px 0;border-bottom:1px solid #1f2937;text-align:right;">
-            <p style="margin:0;font-size:14px;font-weight:600;color:#f9fafb;">${sub['amount']}</p>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;text-align:right;">
+            <p style="margin:0;font-size:14px;font-weight:600;color:#111827;">${sub['amount']}</p>
           </td>
         </tr>"""
 
     def trial_row(sub: dict) -> str:
         return f"""
         <tr>
-          <td style="padding:10px 0;border-bottom:1px solid #1f2937;">
-            <p style="margin:0;font-size:14px;font-weight:600;color:#f9fafb;">{sub['name']}</p>
-            <p style="margin:4px 0 0 0;font-size:12px;color:#f59e0b;">Free trial ends {sub['trial_ends_at']} · Will auto-charge ${sub['amount']}</p>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;">
+            <p style="margin:0;font-size:14px;font-weight:600;color:#111827;">{sub['name']}</p>
+            <p style="margin:4px 0 0 0;font-size:12px;color:#b45309;">Free trial ends {sub['trial_ends_at']} · Will auto-charge ${sub['amount']}</p>
           </td>
-          <td style="padding:10px 0;border-bottom:1px solid #1f2937;text-align:right;">
-            <p style="margin:0;font-size:14px;font-weight:600;color:#f59e0b;">${sub['amount']}</p>
+          <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;text-align:right;">
+            <p style="margin:0;font-size:14px;font-weight:600;color:#b45309;">${sub['amount']}</p>
           </td>
         </tr>"""
 
