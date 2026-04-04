@@ -72,6 +72,31 @@ class SubscriptionUpdate(BaseModel):
     trial_ends_at: date | None = None
     is_active: bool | None = None
 
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v):
+        if v is None:
+            return v
+        try:
+            ExpenseCategory(v)
+        except ValueError:
+            raise ValueError(f"Invalid expense category: {v}")
+        return v
+
+    @field_validator("anchor_day")
+    @classmethod
+    def validate_anchor_day(cls, v):
+        if v is not None and not (1 <= v <= 31):
+            raise ValueError("anchor_day must be between 1 and 31")
+        return v
+
+    @field_validator("anchor_month")
+    @classmethod
+    def validate_anchor_month(cls, v):
+        if v is not None and not (1 <= v <= 12):
+            raise ValueError("anchor_month must be between 1 and 12")
+        return v
+
 
 class SubscriptionResponse(BaseModel):
     model_config = {"from_attributes": True, "extra": "ignore"}
