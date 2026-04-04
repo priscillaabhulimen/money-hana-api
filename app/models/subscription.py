@@ -18,6 +18,7 @@ class Subscription(Base):
     billing_type: Mapped[str] = mapped_column(String, nullable=False)  # fixed_date | periodic
     frequency: Mapped[str] = mapped_column(String, nullable=False)  # weekly | monthly | yearly
     anchor_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    anchor_month: Mapped[int | None] = mapped_column(Integer, nullable=True)
     next_due_date: Mapped[date] = mapped_column(Date, nullable=False)
     is_trial: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     trial_ends_at: Mapped[date | None] = mapped_column(Date, nullable=True)
