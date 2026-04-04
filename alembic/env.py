@@ -26,6 +26,10 @@ if not database_url:
     raise RuntimeError("DATABASE_URL is not set. Add it to your environment or .env file.")
 
 sync_url = database_url.replace("postgresql+asyncpg://", "postgresql+psycopg://")
+# Render and some hosts provide plain postgres:// or postgresql:// — normalize those too
+sync_url = sync_url.replace("postgres://", "postgresql+psycopg://")
+if sync_url.startswith("postgresql://"):
+    sync_url = "postgresql+psycopg://" + sync_url[len("postgresql://"):]
 config.set_main_option("sqlalchemy.url", sync_url.replace("%", "%%"))
 
 target_metadata = Base.metadata
