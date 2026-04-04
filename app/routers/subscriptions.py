@@ -9,7 +9,7 @@ from app.models import User
 from app.models.subscription import Subscription
 from app.schemas import BaseResponse, SubscriptionCreate, SubscriptionUpdate, SubscriptionResponse
 from app.routers.auth import get_current_user
-from app.utils.subscription_dates import calculate_next_due_date, advance_due_date
+from app.utils.subscription_dates import calculate_next_due_date
 
 router = APIRouter(
     prefix="/api/v1/subscriptions",
