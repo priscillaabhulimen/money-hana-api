@@ -11,7 +11,9 @@ from app.database import engine, get_db, init_models
 from app.config import settings
 from app.schemas.base import ErrorResponse
 from app.utils import ERROR_MESSAGES, custom_openapi
-from app.routers import ai_insights, auth, transactions, goals
+from app.routers import ai_insights, auth, subscriptions, transactions, goals, notifications
+from app.utils.digest import send_weekly_digest
+from app.utils.lock import DistributedLock
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -37,13 +39,37 @@ async def _assert_auth_tables_ready() -> None:
 async def lifespan(app: FastAPI):
     async def run_cleanup():
         async with AsyncSessionLocal() as db:
-            await cleanup_old_insights(db)
+            lock = DistributedLock(db, job_id="cleanup_old_insights", ttl_seconds=3600)
+            if await lock.acquire():
+                try:
+                    await cleanup_old_insights(db)
+                finally:
+                    await lock.release()
+            else:
+                logger.debug("Skipping cleanup - another instance is running it")
+
+    async def run_digest():
+        async with AsyncSessionLocal() as db:
+            lock = DistributedLock(db, job_id="weekly_digest", ttl_seconds=3600)
+            if await lock.acquire():
+                try:
+                    await send_weekly_digest(db)
+                finally:
+                    await lock.release()
+            else:
+                logger.debug("Skipping digest - another instance is running it")
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
         run_cleanup,
         trigger=CronTrigger(hour=2, minute=0),
         id="cleanup_old_insights",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        run_digest,
+        trigger=CronTrigger(day_of_week="mon", hour=8, minute=0),
+        id="weekly_digest",
         replace_existing=True,
     )
     scheduler.start()
@@ -103,6 +129,8 @@ app.include_router(auth.router)
 app.include_router(transactions.router)
 app.include_router(goals.router)
 app.include_router(ai_insights.router)
+app.include_router(subscriptions.router)
+app.include_router(notifications.router)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────

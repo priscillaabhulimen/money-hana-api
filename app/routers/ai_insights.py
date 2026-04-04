@@ -173,10 +173,12 @@ async def get_ai_insights(
         cached = result.scalars().all()
 
         if cached:
-            latest = cached[0].created_at
-            if latest.tzinfo is None:
-                latest = latest.replace(tzinfo=timezone.utc)
-            age = datetime.now(timezone.utc) - latest
+            latest_created_at = cached[0].created_at
+            # Ensure timestamp is timezone-aware for comparison
+            if latest_created_at.tzinfo is None:
+                latest_created_at = latest_created_at.replace(tzinfo=timezone.utc)
+            
+            age = datetime.now(timezone.utc) - latest_created_at
             if age < timedelta(days=INSIGHT_TTL_DAYS):
                 return BaseResponse(data=cached)
 

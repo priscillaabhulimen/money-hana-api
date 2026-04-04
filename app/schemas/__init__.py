@@ -12,3 +12,4 @@ from app.schemas.users import (
     ResendVerificationRequest,
 )
 from app.schemas.ai_insights import AIInsightResponse, AIInsightsRequest
+from app.schemas.subscriptions import SubscriptionCreate, SubscriptionUpdate, SubscriptionResponse
