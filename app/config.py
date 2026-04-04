@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     )
     resend_api_key: str | None = Field(default=None, validation_alias="RESEND_API_KEY")
     email_test_recipient: str | None = Field(default=None, validation_alias="EMAIL_TEST_RECIPIENT")
-    resend_tier: str | None = Field(default=None, validation_alias="RESEND_TIER")
+    resend_tier: str | None = Field(default="free", validation_alias="RESEND_TIER")
 
     groq_api_key: str = Field(validation_alias="GROQ_API_KEY")
     insight_ttl_days: int = Field(default=7, validation_alias="INSIGHT_TTL_DAYS")
