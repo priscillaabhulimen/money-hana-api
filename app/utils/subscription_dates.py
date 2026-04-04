@@ -88,20 +88,29 @@ def calculate_next_due_date(
     raise ValueError(f"Unknown billing_type: {billing_type}")
 
 
-def advance_due_date(subscription) -> date:
-    """Advance next_due_date by one period after confirmation or dismissal."""
+def advance_due_date(subscription, reference_date: date | None = None) -> date:
+    """Advance next_due_date until it is after the reference date."""
+    target_date = reference_date or date.today()
     from_date = subscription.next_due_date
-    if subscription.billing_type == "periodic":
-        return _advance_periodic(from_date, subscription.frequency)
-    if subscription.billing_type == "fixed_date":
-        if subscription.frequency == "monthly":
-            return _next_fixed_monthly(subscription.anchor_day, from_date)
-        if subscription.frequency == "weekly":
-            return _next_fixed_weekly(subscription.anchor_day, from_date)
-        if subscription.frequency == "yearly":
-            return _next_fixed_yearly(
-                subscription.anchor_day,
-                subscription.anchor_month,
-                from_date,
-            )
-    raise ValueError("Cannot advance due date — unknown billing configuration")
+
+    while from_date <= target_date:
+        if subscription.billing_type == "periodic":
+            from_date = _advance_periodic(from_date, subscription.frequency)
+            continue
+        if subscription.billing_type == "fixed_date":
+            if subscription.frequency == "monthly":
+                from_date = _next_fixed_monthly(subscription.anchor_day, from_date)
+                continue
+            if subscription.frequency == "weekly":
+                from_date = _next_fixed_weekly(subscription.anchor_day, from_date)
+                continue
+            if subscription.frequency == "yearly":
+                from_date = _next_fixed_yearly(
+                    subscription.anchor_day,
+                    subscription.anchor_month,
+                    from_date,
+                )
+                continue
+        raise ValueError("Cannot advance due date — unknown billing configuration")
+
+    return from_date
