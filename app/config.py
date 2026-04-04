@@ -13,6 +13,16 @@ class Settings(BaseSettings):
     )
 
     database_url: str = Field(validation_alias="DATABASE_URL")
+
+    @property
+    def async_database_url(self) -> str:
+        """Normalize any postgresql URL variant to use asyncpg."""
+        url = self.database_url
+        url = url.replace("postgresql+psycopg://", "postgresql+asyncpg://")
+        url = url.replace("postgres://", "postgresql+asyncpg://")
+        if url.startswith("postgresql://"):
+            url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+        return url
     app_env: Literal["development", "staging", "production"] = Field(
         default="development",
         validation_alias="APP_ENV",
