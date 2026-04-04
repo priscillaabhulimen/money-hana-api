@@ -13,6 +13,7 @@ from app.schemas.base import ErrorResponse
 from app.utils import ERROR_MESSAGES, custom_openapi
 from app.routers import ai_insights, auth, subscriptions, transactions, goals, notifications
 from app.utils.digest import send_weekly_digest
+from app.utils.lock import DistributedLock
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -38,11 +39,25 @@ async def _assert_auth_tables_ready() -> None:
 async def lifespan(app: FastAPI):
     async def run_cleanup():
         async with AsyncSessionLocal() as db:
-            await cleanup_old_insights(db)
+            lock = DistributedLock(db, job_id="cleanup_old_insights", ttl_seconds=3600)
+            if await lock.acquire():
+                try:
+                    await cleanup_old_insights(db)
+                finally:
+                    await lock.release()
+            else:
+                logger.debug("Skipping cleanup - another instance is running it")
 
     async def run_digest():
         async with AsyncSessionLocal() as db:
-            await send_weekly_digest(db)
+            lock = DistributedLock(db, job_id="weekly_digest", ttl_seconds=3600)
+            if await lock.acquire():
+                try:
+                    await send_weekly_digest(db)
+                finally:
+                    await lock.release()
+            else:
+                logger.debug("Skipping digest - another instance is running it")
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
