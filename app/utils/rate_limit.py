@@ -18,9 +18,10 @@ class RateLimitConfig:
 
 
 class InMemoryRateLimiterMiddleware(BaseHTTPMiddleware):
-    """Simple per-client, fixed-window rate limiter.
+    """Simple per-client, sliding-window rate limiter.
 
     This middleware is process-local and best suited for a single API instance.
+    It tracks recent request timestamps within the configured window.
     """
 
     def __init__(self, app, *, config: RateLimitConfig):
