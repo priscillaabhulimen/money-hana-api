@@ -105,43 +105,14 @@ async def send_verification_email(email: str, token: str) -> None:
 async def send_password_reset_email(email: str, token: str) -> None:
     provider = settings.email_provider
     reset_url = build_password_reset_url(token)
-    recipient = (
-        settings.email_test_recipient
-        if settings.app_env == "development" and settings.email_test_recipient
-        else email
-    )
 
-    if provider in {"resend", "render"}:
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(
-                    "https://api.resend.com/emails",
-                    headers={
-                        "Authorization": f"Bearer {settings.resend_api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "from": settings.email_from,
-                        "to": [recipient],
-                        "subject": "Reset your MoneyHana password",
-                        "html": password_reset_email(
-                            reset_url,
-                            settings.password_reset_token_expire_minutes,
-                        ),
-                    },
-                )
-                response.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            detail = exc.response.text.strip()
-            logger.error(
-                "Email provider rejected password reset request: status=%s detail=%s",
-                exc.response.status_code,
-                detail,
-            )
-            raise EmailDeliveryError("Failed to send password reset email") from exc
-        except httpx.HTTPError as exc:
-            logger.exception("Failed to reach email provider")
-            raise EmailDeliveryError("Failed to send password reset email") from exc
+    if provider not in {"resend", "render"}:
+        logger.info("Password reset link for %s: %s", email, reset_url)
         return
 
-    logger.info("Password reset link for %s: %s", email, reset_url)
+    subject = "Reset your MoneyHana password"
+    html = password_reset_email(
+        reset_url,
+        settings.password_reset_token_expire_minutes,
+    )
+    await send_email(email, subject, html)
