@@ -50,12 +50,23 @@ class Settings(BaseSettings):
         default="http://localhost:3000/verify-email",
         validation_alias="FRONTEND_VERIFY_URL",
     )
+    frontend_reset_password_url: str = Field(
+        default="http://localhost:3000/reset-password",
+        validation_alias="FRONTEND_RESET_PASSWORD_URL",
+    )
+    password_reset_token_expire_minutes: int = Field(
+        default=30,
+        validation_alias="PASSWORD_RESET_TOKEN_EXPIRE_MINUTES",
+    )
     resend_api_key: str | None = Field(default=None, validation_alias="RESEND_API_KEY")
     email_test_recipient: str | None = Field(default=None, validation_alias="EMAIL_TEST_RECIPIENT")
     resend_tier: str | None = Field(default="free", validation_alias="RESEND_TIER")
 
     groq_api_key: str = Field(validation_alias="GROQ_API_KEY")
     insight_ttl_days: int = Field(default=7, validation_alias="INSIGHT_TTL_DAYS")
+    rate_limit_enabled: bool = Field(default=True, validation_alias="RATE_LIMIT_ENABLED")
+    rate_limit_requests: int = Field(default=120, validation_alias="RATE_LIMIT_REQUESTS")
+    rate_limit_window_seconds: int = Field(default=60, validation_alias="RATE_LIMIT_WINDOW_SECONDS")
 
     @property
     def allowed_origins_list(self) -> list[str]:
@@ -75,6 +86,12 @@ class Settings(BaseSettings):
             raise ValueError("GROQ_API_KEY is required")
         if not self.insight_ttl_days:
             raise ValueError("INSIGHT_TTL_DAYS is required")
+        if self.rate_limit_requests <= 0:
+            raise ValueError("RATE_LIMIT_REQUESTS must be greater than 0")
+        if self.rate_limit_window_seconds <= 0:
+            raise ValueError("RATE_LIMIT_WINDOW_SECONDS must be greater than 0")
+        if self.password_reset_token_expire_minutes <= 0:
+            raise ValueError("PASSWORD_RESET_TOKEN_EXPIRE_MINUTES must be greater than 0")
         return self
 
 

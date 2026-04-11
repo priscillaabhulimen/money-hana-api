@@ -56,3 +56,16 @@ class ResendVerificationRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
     email: EmailStr
+
+
+class ForgotPasswordRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    token: str
+    new_password: str

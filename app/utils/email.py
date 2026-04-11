@@ -3,7 +3,7 @@ from urllib.parse import urlencode
 
 import httpx
 from app.config import settings
-from app.utils.email_templates import verification_email
+from app.utils.email_templates import verification_email, password_reset_email
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +14,10 @@ class EmailDeliveryError(Exception):
 
 def build_verification_url(token: str) -> str:
     return f"{settings.frontend_verify_url}?{urlencode({'token': token})}"
+
+
+def build_password_reset_url(token: str) -> str:
+    return f"{settings.frontend_reset_password_url}?{urlencode({'token': token})}"
 
 async def send_email(to: str, subject: str, html: str) -> None:
     provider = settings.email_provider
@@ -96,3 +100,48 @@ async def send_verification_email(email: str, token: str) -> None:
 
     # Default free scaffold mode: log verification link locally.
     logger.info("Email verification link for %s: %s", email, verification_url)
+
+
+async def send_password_reset_email(email: str, token: str) -> None:
+    provider = settings.email_provider
+    reset_url = build_password_reset_url(token)
+    recipient = (
+        settings.email_test_recipient
+        if settings.app_env == "development" and settings.email_test_recipient
+        else email
+    )
+
+    if provider in {"resend", "render"}:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    "https://api.resend.com/emails",
+                    headers={
+                        "Authorization": f"Bearer {settings.resend_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "from": settings.email_from,
+                        "to": [recipient],
+                        "subject": "Reset your MoneyHana password",
+                        "html": password_reset_email(
+                            reset_url,
+                            settings.password_reset_token_expire_minutes,
+                        ),
+                    },
+                )
+                response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text.strip()
+            logger.error(
+                "Email provider rejected password reset request: status=%s detail=%s",
+                exc.response.status_code,
+                detail,
+            )
+            raise EmailDeliveryError("Failed to send password reset email") from exc
+        except httpx.HTTPError as exc:
+            logger.exception("Failed to reach email provider")
+            raise EmailDeliveryError("Failed to send password reset email") from exc
+        return
+
+    logger.info("Password reset link for %s: %s", email, reset_url)

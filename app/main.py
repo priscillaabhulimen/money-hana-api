@@ -11,6 +11,7 @@ from app.database import engine, get_db, init_models
 from app.config import settings
 from app.schemas.base import ErrorResponse
 from app.utils import ERROR_MESSAGES, custom_openapi
+from app.utils.rate_limit import InMemoryRateLimiterMiddleware, RateLimitConfig
 from app.routers import ai_insights, auth, subscriptions, transactions, goals, notifications
 from app.utils.digest import send_weekly_digest
 from app.utils.lock import DistributedLock
@@ -95,6 +96,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if settings.rate_limit_enabled:
+    app.add_middleware(
+        InMemoryRateLimiterMiddleware,
+        config=RateLimitConfig(
+            requests=settings.rate_limit_requests,
+            window_seconds=settings.rate_limit_window_seconds,
+        ),
+    )
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
