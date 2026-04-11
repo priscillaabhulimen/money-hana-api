@@ -33,7 +33,13 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("token_hash"),
     )
-    op.create_index(op.f("ix_password_reset_tokens_user_id"), "password_reset_tokens", ["user_id"], unique=False)
+    op.create_index(
+        op.f("ix_password_reset_tokens_user_id"),
+        "password_reset_tokens",
+        ["user_id"],
+        unique=True,
+        postgresql_where=sa.text("used_at IS NULL"),
+    )
 
 
 def downgrade() -> None:
