@@ -97,14 +97,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-if settings.rate_limit_enabled:
-    app.add_middleware(
-        InMemoryRateLimiterMiddleware,
-        config=RateLimitConfig(
-            requests=settings.rate_limit_requests,
-            window_seconds=settings.rate_limit_window_seconds,
-        ),
-    )
+app.add_middleware(
+    InMemoryRateLimiterMiddleware,
+    config=RateLimitConfig(
+        requests=settings.rate_limit_requests,
+        window_seconds=settings.rate_limit_window_seconds,
+    ),
+)
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

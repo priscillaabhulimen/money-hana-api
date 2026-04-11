@@ -74,7 +74,7 @@ class Settings(BaseSettings):
         return origins or ["http://localhost:3000"]
 
     @model_validator(mode="after")
-    def validate_email_provider_config(self) -> "Settings":
+    def validate_email_config(self) -> "Settings":
         if self.email_provider in {"resend", "render"}:
             if not self.resend_api_key:
                 raise ValueError("RESEND_API_KEY is required when EMAIL_PROVIDER is resend or render")
@@ -86,10 +86,18 @@ class Settings(BaseSettings):
             raise ValueError("GROQ_API_KEY is required")
         if not self.insight_ttl_days:
             raise ValueError("INSIGHT_TTL_DAYS is required")
+        return self
+
+    @model_validator(mode="after")
+    def validate_rate_limit_config(self) -> "Settings":
         if self.rate_limit_requests <= 0:
             raise ValueError("RATE_LIMIT_REQUESTS must be greater than 0")
         if self.rate_limit_window_seconds <= 0:
             raise ValueError("RATE_LIMIT_WINDOW_SECONDS must be greater than 0")
+        return self
+
+    @model_validator(mode="after")
+    def validate_password_reset_config(self) -> "Settings":
         if self.password_reset_token_expire_minutes <= 0:
             raise ValueError("PASSWORD_RESET_TOKEN_EXPIRE_MINUTES must be greater than 0")
         return self
