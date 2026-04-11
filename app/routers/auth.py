@@ -376,11 +376,7 @@ async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Dep
 
     now = datetime.now(timezone.utc)
     await db.execute(
-        delete(PasswordResetToken).where(
-            (PasswordResetToken.user_id == user.id)
-            | (PasswordResetToken.expires_at <= now)
-            | (PasswordResetToken.used_at.is_not(None))
-        )
+        delete(PasswordResetToken).where(PasswordResetToken.user_id == user.id)
     )
 
     expires_delta = timedelta(minutes=settings.password_reset_token_expire_minutes)
