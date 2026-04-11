@@ -329,3 +329,46 @@ def digest_email(
   </table>
 </body>
 </html>"""
+
+
+def password_reset_email(reset_url: str, expires_in_minutes: int) -> str:
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Reset your MoneyHana password</title>
+</head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#f9fafb;">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" role="presentation" style="width:100%;max-width:560px;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+          <tr>
+            <td style="height:4px;background:linear-gradient(90deg,#5c5cff,#818cf8);"></td>
+          </tr>
+          <tr>
+            <td style="padding:32px;">
+              <h1 style="margin:0 0 12px 0;color:#111827;font-size:24px;">Reset your password</h1>
+              <p style="margin:0 0 20px 0;color:#4b5563;font-size:15px;line-height:1.6;">
+                We received a request to reset your MoneyHana password. Use the button below to set a new password.
+              </p>
+              <table cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td style="border-radius:8px;background:#5c5cff;">
+                    <a href="{reset_url}" style="display:inline-block;padding:12px 24px;color:#ffffff;text-decoration:none;font-weight:600;">Reset password</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:20px 0 0 0;color:#6b7280;font-size:13px;line-height:1.6;">
+                This link expires in {expires_in_minutes} minutes. If you did not request this, you can ignore this email.
+              </p>
+              <p style="margin:16px 0 0 0;color:#6b7280;font-size:12px;word-break:break-all;">{reset_url}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""

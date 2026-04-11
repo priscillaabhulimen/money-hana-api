@@ -4,6 +4,7 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.pool import NullPool
 from app.main import app as fastapi_app
+from app.config import settings
 from app.database import get_db
 from app.base import Base
 import app.models  # noqa: F401
@@ -49,6 +50,8 @@ async def client(test_engine):
         async with TestSessionLocal() as session:
             yield session
 
+    previous_rate_limit_enabled = settings.rate_limit_enabled
+    settings.rate_limit_enabled = False
     fastapi_app.dependency_overrides[get_db] = override_get_db
     async with AsyncClient(
         transport=ASGITransport(app=fastapi_app),
@@ -56,6 +59,7 @@ async def client(test_engine):
     ) as ac:
         yield ac
     fastapi_app.dependency_overrides.clear()
+    settings.rate_limit_enabled = previous_rate_limit_enabled
 
 @pytest_asyncio.fixture
 async def registered_user(client: AsyncClient):

@@ -10,6 +10,8 @@ from app.schemas.users import (
     AuthResponse,
     VerifyEmailRequest,
     ResendVerificationRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
 )
 from app.schemas.ai_insights import AIInsightResponse, AIInsightsRequest
 from app.schemas.subscriptions import SubscriptionCreate, SubscriptionUpdate, SubscriptionResponse

@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 from app.database import get_db
 from app.config import settings
 from app.models import User, RefreshToken
+from app.models.password_reset_tokens import PasswordResetToken
 from app.schemas import (
     BaseResponse,
     Register,
@@ -18,6 +19,8 @@ from app.schemas import (
     UserResponse,
     VerifyEmailRequest,
     ResendVerificationRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
 )
 from app.utils import (
     hash_password,
@@ -28,7 +31,7 @@ from app.utils import (
     hash_token,
     REFRESH_TOKEN_EXPIRE_DAYS,
 )
-from app.utils.email import send_verification_email, EmailDeliveryError
+from app.utils.email import send_verification_email, send_password_reset_email, EmailDeliveryError
 
 router = APIRouter(
     prefix="/api/v1",
@@ -356,4 +359,103 @@ async def resend_verification(payload: ResendVerificationRequest, db: AsyncSessi
     return BaseResponse(
         data={"status": "queued"},
         message="If this email exists, a verification link has been sent.",
+    )
+
+
+@router.post("/forgot-password", response_model=BaseResponse[dict[str, str]])
+async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+    generic_response = BaseResponse(
+        data={"status": "queued"},
+        message="If this email exists, a password reset link has been sent.",
+    )
+
+    result = await db.execute(select(User).where(User.email == payload.email))
+    user = result.scalars().one_or_none()
+    if not user:
+        return generic_response
+
+    now = datetime.now(timezone.utc)
+    await db.execute(
+        delete(PasswordResetToken).where(PasswordResetToken.user_id == user.id)
+    )
+
+    expires_delta = timedelta(minutes=settings.password_reset_token_expire_minutes)
+    expires_at = now + expires_delta
+    token = create_access_token(
+        {
+            "sub": str(user.id),
+            "email": user.email,
+            "purpose": "password_reset",
+            "jti": str(uuid4()),
+        },
+        expires_delta=expires_delta,
+    )
+    db.add(
+        PasswordResetToken(
+            user_id=user.id,
+            token_hash=hash_token(token),
+            expires_at=expires_at,
+        )
+    )
+    await db.commit()
+
+    try:
+        await send_password_reset_email(user.email, token)
+    except EmailDeliveryError:
+        logger.exception("Password reset email send failed")
+
+    return generic_response
+
+
+@router.post("/reset-password", response_model=BaseResponse[dict[str, str]])
+async def reset_password(payload: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    try:
+        token_payload = decode_access_token(payload.token)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token") from exc
+
+    if token_payload.get("purpose") != "password_reset":
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    subject = token_payload.get("sub")
+    if not subject:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    try:
+        user_id = UUID(subject)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token") from exc
+
+    now = datetime.now(timezone.utc)
+    token_hash = hash_token(payload.token)
+    token_result = await db.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == token_hash,
+            PasswordResetToken.user_id == user_id,
+            PasswordResetToken.used_at.is_(None),
+            PasswordResetToken.expires_at > now,
+        )
+    )
+    reset_token = token_result.scalars().one_or_none()
+    if not reset_token:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    user = user_result.scalars().one_or_none()
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    user.password_hash = await asyncio.to_thread(hash_password, payload.new_password)
+    reset_token.used_at = now
+
+    await db.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
+        .values(revoked_at=now)
+    )
+    await db.commit()
+
+    return BaseResponse(
+        data={"status": "reset"},
+        message="Password reset successful.",
     )
