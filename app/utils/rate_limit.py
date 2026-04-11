@@ -28,13 +28,14 @@ class InMemoryRateLimiterMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.config = config
         self._request_log: dict[str, Deque[float]] = defaultdict(deque)
-        self._lock = asyncio.Lock()
+        self._locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
     async def dispatch(self, request: Request, call_next):
         client_key = self._get_client_key(request)
         now = time.monotonic()
+        client_lock = self._locks[client_key]
 
-        async with self._lock:
+        async with client_lock:
             log = self._request_log[client_key]
             cutoff = now - self.config.window_seconds
 
