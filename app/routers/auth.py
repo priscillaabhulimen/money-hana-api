@@ -31,7 +31,7 @@ from app.utils import (
     hash_token,
     REFRESH_TOKEN_EXPIRE_DAYS,
 )
-from app.utils.email import send_verification_email, send_password_reset_email, EmailDeliveryError
+from app.utils.email import send_password_reset_email, EmailDeliveryError
 
 router = APIRouter(
     prefix="/api/v1",
@@ -123,9 +123,6 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
     user = result.scalars().one_or_none()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
-    if not user.is_verified:
-        raise HTTPException(status_code=403, detail="Email not verified")
-
     return user
 
 @router.get("/me", response_model=BaseResponse[UserResponse])
@@ -141,7 +138,7 @@ async def register_user(user: Register, db: AsyncSession = Depends(get_db)):
         email=user.email,
         password_hash=hashed_password,
         user_type=user.user_type.value,
-        is_verified=False,
+        is_verified=True,
     )
     db.add(new_user)
     try:
@@ -152,28 +149,9 @@ async def register_user(user: Register, db: AsyncSession = Depends(get_db)):
         logger.warning("Registration failed due to integrity constraint")
         raise HTTPException(status_code=400, detail="Registration could not be completed")
 
-    verification_token = create_access_token(
-        {
-            "sub": str(new_user.id),
-            "email": new_user.email,
-            "purpose": "email_verify",
-        },
-        expires_delta=timedelta(hours=24),
-    )
-    try:
-        await send_verification_email(new_user.email, verification_token)
-    except EmailDeliveryError:
-        return BaseResponse(
-            data=UserResponse.model_validate(new_user),
-            message=(
-                "Registration successful, but verification email could not be sent. "
-                "Please check email provider settings and use resend verification."
-            ),
-        )
-
     return BaseResponse(
         data=UserResponse.model_validate(new_user),
-        message="Registration successful. Please verify your email.",
+        message="Registration successful.",
     )
 
 @router.post("/login", response_model=BaseResponse[UserResponse])
@@ -186,8 +164,6 @@ async def login(data: Login, response: Response, db: AsyncSession = Depends(get_
     password_ok = await asyncio.to_thread(verify_password, data.password, stored_hash)
     if not user or not password_ok:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    if not user.is_verified:
-        raise HTTPException(status_code=403, detail="Email not verified")
 
     access_token = _new_access_token(user)
     refresh_token, refresh_expires_at = _new_refresh_token(user)
@@ -250,8 +226,6 @@ async def refresh_session(request: Request, response: Response, db: AsyncSession
     user = user_result.scalars().one_or_none()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
-    if not user.is_verified:
-        raise HTTPException(status_code=403, detail="Email not verified")
 
     new_refresh_token, new_refresh_expires_at = _new_refresh_token(user)
     db.add(
